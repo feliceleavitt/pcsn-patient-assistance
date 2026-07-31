@@ -239,13 +239,24 @@ const initialState: IntakePayload = {
   },
 };
 
-export function IntakeForm() {
+type IntakeFormProps = {
+  initialDraft?: IntakePayload | null;
+  draftUpdatedAt?: string | null;
+};
+
+export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState(initialState);
+  const [form, setForm] = useState<IntakePayload>(initialDraft ?? initialState);
   const [files, setFiles] = useState<Partial<Record<DocumentType, File[]>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [draftMessage, setDraftMessage] = useState(
+    draftUpdatedAt
+      ? `Saved progress loaded from ${new Date(draftUpdatedAt).toLocaleString()}.`
+      : "",
+  );
   const isManufacturer =
     form.assistanceType === "manufacturer" || form.assistanceType === "both";
   const isHospital =
@@ -359,6 +370,43 @@ export function IntakeForm() {
     return requiredByStep.find(([, isComplete]) => !isComplete);
   }
 
+  async function saveDraft() {
+    setSavingDraft(true);
+    setSubmitError("");
+    setDraftMessage("");
+
+    try {
+      const response = await fetch("/api/intake/draft", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: form }),
+      });
+
+      const result = (await response.json().catch(() => null)) as
+        | { updatedAt?: string; error?: string }
+        | null;
+
+      if (!response.ok) {
+        setDraftMessage(
+          result?.error ??
+            "We could not save your progress. Please try again.",
+        );
+        return;
+      }
+
+      const savedAt = result?.updatedAt
+        ? new Date(result.updatedAt).toLocaleString()
+        : new Date().toLocaleString();
+      setDraftMessage(`Progress saved ${savedAt}. You can sign back in later to continue.`);
+    } catch {
+      setDraftMessage(
+        "We could not save your progress. Please check your connection and try again.",
+      );
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
   async function submit() {
     const missing = findMissingRequiredStep();
     if (missing) {
@@ -458,6 +506,17 @@ export function IntakeForm() {
 
   return (
     <div className="grid gap-6">
+      <div className="rounded-md border border-pine/20 bg-white p-4 text-sm leading-6 text-slate-700 shadow-soft">
+        <p>
+          You can save this application and come back later from the same
+          account. Documents are not saved until you submit, so please select
+          your files again if you leave and return.
+        </p>
+        {draftMessage ? (
+          <p className="mt-2 font-semibold text-pine">{draftMessage}</p>
+        ) : null}
+      </div>
+
       <div className="grid gap-3">
         <div className="flex items-center justify-between text-sm">
           <span className="font-semibold">{steps[step]}</span>
@@ -830,24 +889,33 @@ export function IntakeForm() {
         <Button variant="secondary" disabled={step === 0} onClick={() => setStep((current) => Math.max(current - 1, 0))}>
           Back
         </Button>
-        {step < steps.length - 1 ? (
-          <Button onClick={() => setStep((current) => current + 1)}>
-            Continue
-          </Button>
-        ) : (
+        <div className="flex flex-wrap justify-end gap-3">
           <Button
-            disabled={
-              submitting ||
-              !form.consent.releaseMedicalFinancial ||
-              !form.consent.contactPermission ||
-              !form.consent.noGuaranteeAcknowledgment ||
-              !form.consent.signature
-            }
-            onClick={submit}
+            variant="secondary"
+            disabled={savingDraft || submitting}
+            onClick={saveDraft}
           >
-            {submitting ? "Submitting..." : "Submit application"}
+            {savingDraft ? "Saving..." : "Save and finish later"}
           </Button>
-        )}
+          {step < steps.length - 1 ? (
+            <Button onClick={() => setStep((current) => current + 1)}>
+              Continue
+            </Button>
+          ) : (
+            <Button
+              disabled={
+                submitting ||
+                !form.consent.releaseMedicalFinancial ||
+                !form.consent.contactPermission ||
+                !form.consent.noGuaranteeAcknowledgment ||
+                !form.consent.signature
+              }
+              onClick={submit}
+            >
+              {submitting ? "Submitting..." : "Submit application"}
+            </Button>
+          )}
+        </div>
       </div>
       {submitError ? (
         <div
