@@ -14,6 +14,14 @@ export default function PatientLoginPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  function getSafeNextPath() {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (!next || !next.startsWith("/") || next.startsWith("//")) {
+      return "/patient";
+    }
+    return next;
+  }
+
   async function submit() {
     setError("");
     setSubmitting(true);
@@ -32,7 +40,7 @@ export default function PatientLoginPage() {
       return;
     }
 
-    router.push("/patient");
+    router.push(getSafeNextPath());
     router.refresh();
   }
 
@@ -47,8 +55,8 @@ export default function PatientLoginPage() {
             {mode === "login" ? "Sign in to your profile" : "Create your profile"}
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Use a profile to come back later, check your request, and upload
-            anything a volunteer says is missing.
+            Create an account or sign in before starting the application. This
+            lets you save your progress and come back later.
           </p>
         </div>
 
@@ -83,8 +91,7 @@ export default function PatientLoginPage() {
         />
         {mode === "signup" ? (
           <p className="text-sm leading-6 text-slate-600">
-            Create your account before submitting the intake form if you want
-            this request connected to your profile.
+            Your account keeps your saved application connected to you.
           </p>
         ) : null}
         {error ? <p className="text-sm text-coral">{error}</p> : null}
@@ -97,7 +104,7 @@ export default function PatientLoginPage() {
         </Button>
         <div className="flex flex-wrap justify-between gap-3 text-sm">
           <Link href="/intake" className="font-semibold text-pine">
-            Start application
+            Start or continue application
           </Link>
           <Link href="/admin/login" className="text-slate-500">
             Volunteer login
