@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { sendNewSubmissionNotification } from "@/lib/notifications/email";
+import {
+  sendNewSubmissionNotification,
+  sendPatientSubmissionConfirmation,
+} from "@/lib/notifications/email";
 import { encryptBuffer } from "@/lib/security/crypto";
 import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -208,7 +211,10 @@ export async function POST(request: Request) {
     });
   }
 
-  await sendNewSubmissionNotification();
+  await Promise.all([
+    sendNewSubmissionNotification(),
+    sendPatientSubmissionConfirmation(payload.patient.email),
+  ]);
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }
