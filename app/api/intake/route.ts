@@ -150,6 +150,14 @@ function formatValidationError(error: z.ZodError) {
 }
 
 export async function POST(request: Request) {
+  const patientSession = await getPatientSession();
+  if (!patientSession) {
+    return NextResponse.json(
+      { error: "Please create an account or sign in before submitting your application." },
+      { status: 401 },
+    );
+  }
+
   const formData = await request.formData();
   const rawPayload = formData.get("payload");
   if (typeof rawPayload !== "string") {
@@ -175,12 +183,11 @@ export async function POST(request: Request) {
   }
 
   const payload = parsed.data;
-  const patientSession = await getPatientSession();
   const supabase = createServiceClient();
   const { data: patient, error: patientError } = await supabase
     .from("patients")
     .insert({
-      user_id: patientSession?.user.id ?? null,
+      user_id: patientSession.user.id,
       first_name: payload.patient.firstName,
       last_name: payload.patient.lastName,
       date_of_birth: payload.patient.dateOfBirth,
@@ -275,6 +282,7 @@ export async function POST(request: Request) {
   }
 
   await Promise.all([
+    supabase.from("intake_drafts").delete().eq("user_id", patientSession.user.id),
     sendNewSubmissionNotification(),
     sendPatientSubmissionConfirmation(payload.patient.email),
   ]);
