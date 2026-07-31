@@ -512,6 +512,9 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
           account. Documents are not saved until you submit, so please select
           your files again if you leave and return.
         </p>
+        <p className="mt-2">
+          <span className="font-semibold text-coral">*</span> Required field
+        </p>
         {draftMessage ? (
           <p className="mt-2 font-semibold text-pine">{draftMessage}</p>
         ) : null}
@@ -551,18 +554,20 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
 
       {step === 1 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <TextField label="First name" value={form.patient.firstName} onChange={(e) => updateSection("patient", { firstName: e.target.value })} />
-          <TextField label="Last name" value={form.patient.lastName} onChange={(e) => updateSection("patient", { lastName: e.target.value })} />
-          <TextField label="Date of birth" type="date" value={form.patient.dateOfBirth} onChange={(e) => updateSection("patient", { dateOfBirth: e.target.value })} />
-          <TextField label="Phone" value={form.patient.phone} onChange={(e) => updateSection("patient", { phone: e.target.value })} />
-          <TextField label="Email" type="email" value={form.patient.email} onChange={(e) => updateSection("patient", { email: e.target.value })} />
-          <TextField label="Address line 1" value={form.patient.addressLine1} onChange={(e) => updateSection("patient", { addressLine1: e.target.value })} />
+          <TextField required label="First name" value={form.patient.firstName} onChange={(e) => updateSection("patient", { firstName: e.target.value })} />
+          <TextField required label="Last name" value={form.patient.lastName} onChange={(e) => updateSection("patient", { lastName: e.target.value })} />
+          <TextField required label="Date of birth" type="date" value={form.patient.dateOfBirth} onChange={(e) => updateSection("patient", { dateOfBirth: e.target.value })} />
+          <TextField required label="Phone" value={form.patient.phone} onChange={(e) => updateSection("patient", { phone: e.target.value })} />
+          <TextField required label="Email" type="email" value={form.patient.email} onChange={(e) => updateSection("patient", { email: e.target.value })} />
+          <TextField required label="Address line 1" value={form.patient.addressLine1} onChange={(e) => updateSection("patient", { addressLine1: e.target.value })} />
           <TextField label="Address line 2" value={form.patient.addressLine2} onChange={(e) => updateSection("patient", { addressLine2: e.target.value })} />
-          <TextField label="City" value={form.patient.city} onChange={(e) => updateSection("patient", { city: e.target.value })} />
-          <TextField label="State" value={form.patient.state} onChange={(e) => updateSection("patient", { state: e.target.value })} />
-          <TextField label="Postal code" value={form.patient.postalCode} onChange={(e) => updateSection("patient", { postalCode: e.target.value })} />
+          <TextField required label="City" value={form.patient.city} onChange={(e) => updateSection("patient", { city: e.target.value })} />
+          <TextField required label="State" value={form.patient.state} onChange={(e) => updateSection("patient", { state: e.target.value })} />
+          <TextField required label="Postal code" value={form.patient.postalCode} onChange={(e) => updateSection("patient", { postalCode: e.target.value })} />
           <label className="grid gap-2 text-sm">
-            <span className="font-medium text-ink">Employment status</span>
+            <span className="font-medium text-ink">
+              Employment status<span className="ml-1 text-coral">*</span>
+            </span>
             <select
               className="h-11 rounded-md border border-slate-300 bg-white px-3"
               value={form.patient.employmentStatus}
@@ -625,14 +630,14 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
 
       {step === 3 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <AutocompleteField label="Cancer type" value={form.diagnosis.cancerType} options={cancerTypes} onChange={(value) => updateSection("diagnosis", { cancerType: value })} />
-          <TextField label="Diagnosis date" type="date" value={form.diagnosis.diagnosisDate} onChange={(e) => updateSection("diagnosis", { diagnosisDate: e.target.value })} />
+          <AutocompleteField required label="Cancer type" value={form.diagnosis.cancerType} options={cancerTypes} onChange={(value) => updateSection("diagnosis", { cancerType: value })} />
+          <TextField required label="Diagnosis date" type="date" value={form.diagnosis.diagnosisDate} onChange={(e) => updateSection("diagnosis", { diagnosisDate: e.target.value })} />
           <TextField label="Treatment start date" type="date" value={form.diagnosis.treatmentStartDate} onChange={(e) => updateSection("diagnosis", { treatmentStartDate: e.target.value })} />
           {isManufacturer ? (
-            <AutocompleteField label="Medication" value={form.diagnosis.medicationRequested ?? ""} options={medications} onChange={(value) => updateSection("diagnosis", { medicationRequested: value })} />
+            <AutocompleteField required label="Medication" value={form.diagnosis.medicationRequested ?? ""} options={medications} onChange={(value) => updateSection("diagnosis", { medicationRequested: value })} />
           ) : null}
           <div className="md:col-span-2">
-            <TextAreaField label="Treatment plan" value={form.diagnosis.treatmentPlan} onChange={(e) => updateSection("diagnosis", { treatmentPlan: e.target.value })} />
+            <TextAreaField required label="Treatment plan" value={form.diagnosis.treatmentPlan} onChange={(e) => updateSection("diagnosis", { treatmentPlan: e.target.value })} />
           </div>
           {isHospital ? (
             <>
@@ -645,16 +650,16 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
 
       {step === 4 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <TextField label="Clinic name" value={form.provider.clinicName} onChange={(e) => updateSection("provider", { clinicName: e.target.value })} />
-          <TextField label="Prescriber/provider name" value={form.provider.providerName} onChange={(e) => updateSection("provider", { providerName: e.target.value })} />
-          <TextField label="NPI" value={form.provider.npi} onChange={(e) => updateSection("provider", { npi: e.target.value })} />
-          <TextField label="Phone" value={form.provider.phone} onChange={(e) => updateSection("provider", { phone: e.target.value })} />
+          <TextField required label="Clinic name" value={form.provider.clinicName} onChange={(e) => updateSection("provider", { clinicName: e.target.value })} />
+          <TextField required label="Prescriber/provider name" value={form.provider.providerName} onChange={(e) => updateSection("provider", { providerName: e.target.value })} />
+          <TextField required label="NPI" value={form.provider.npi} onChange={(e) => updateSection("provider", { npi: e.target.value })} />
+          <TextField required label="Phone" value={form.provider.phone} onChange={(e) => updateSection("provider", { phone: e.target.value })} />
           <TextField label="Fax" value={form.provider.fax} onChange={(e) => updateSection("provider", { fax: e.target.value })} />
-          <TextField label="Address line 1" value={form.provider.addressLine1} onChange={(e) => updateSection("provider", { addressLine1: e.target.value })} />
+          <TextField required label="Address line 1" value={form.provider.addressLine1} onChange={(e) => updateSection("provider", { addressLine1: e.target.value })} />
           <TextField label="Address line 2" value={form.provider.addressLine2} onChange={(e) => updateSection("provider", { addressLine2: e.target.value })} />
-          <TextField label="City" value={form.provider.city} onChange={(e) => updateSection("provider", { city: e.target.value })} />
-          <TextField label="State" value={form.provider.state} onChange={(e) => updateSection("provider", { state: e.target.value })} />
-          <TextField label="Postal code" value={form.provider.postalCode} onChange={(e) => updateSection("provider", { postalCode: e.target.value })} />
+          <TextField required label="City" value={form.provider.city} onChange={(e) => updateSection("provider", { city: e.target.value })} />
+          <TextField required label="State" value={form.provider.state} onChange={(e) => updateSection("provider", { state: e.target.value })} />
+          <TextField required label="Postal code" value={form.provider.postalCode} onChange={(e) => updateSection("provider", { postalCode: e.target.value })} />
         </div>
       ) : null}
 
@@ -722,11 +727,13 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
       {step === 6 ? (
         <div className="grid gap-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField label="Monthly household income" type="number" value={form.household.monthlyIncome} onChange={(e) => updateSection("household", { monthlyIncome: Number(e.target.value) })} />
-            <TextField label="Annual household income" type="number" value={form.household.annualIncome} onChange={(e) => updateSection("household", { annualIncome: Number(e.target.value) })} />
-            <TextField label="Household size" type="number" value={form.household.householdSize} onChange={(e) => updateSection("household", { householdSize: Number(e.target.value) })} />
+            <TextField required label="Monthly household income" type="number" value={form.household.monthlyIncome} onChange={(e) => updateSection("household", { monthlyIncome: Number(e.target.value) })} />
+            <TextField required label="Annual household income" type="number" value={form.household.annualIncome} onChange={(e) => updateSection("household", { annualIncome: Number(e.target.value) })} />
+            <TextField required label="Household size" type="number" value={form.household.householdSize} onChange={(e) => updateSection("household", { householdSize: Number(e.target.value) })} />
             <label className="grid gap-2 text-sm">
-              <span className="font-medium text-ink">Patient employment status</span>
+              <span className="font-medium text-ink">
+                Patient employment status<span className="ml-1 text-coral">*</span>
+              </span>
               <select
                 className="h-11 rounded-md border border-slate-300 bg-white px-3"
                 value={form.patient.employmentStatus}
@@ -764,9 +771,9 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
               return (
               <div key={index} className="grid gap-4 rounded-md border border-slate-200 bg-white p-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <TextField label="Name" value={displayMember.name} disabled={isPatientMember} onChange={(e) => updateMember(index, { name: e.target.value })} />
-                  <TextField label="Relationship" value={displayMember.relationship} disabled={isPatientMember} onChange={(e) => updateMember(index, { relationship: e.target.value })} />
-                  <TextField label="Age" type="number" value={displayMember.age} onChange={(e) => updateMember(index, { age: Number(e.target.value) })} />
+                  <TextField required label="Name" value={displayMember.name} disabled={isPatientMember} onChange={(e) => updateMember(index, { name: e.target.value })} />
+                  <TextField required label="Relationship" value={displayMember.relationship} disabled={isPatientMember} onChange={(e) => updateMember(index, { relationship: e.target.value })} />
+                  <TextField required label="Age" type="number" value={displayMember.age} onChange={(e) => updateMember(index, { age: Number(e.target.value) })} />
                   <label className="flex items-center gap-3 text-sm">
                     <input type="checkbox" checked={member.isAdult} onChange={(e) => updateMember(index, { isAdult: e.target.checked })} />
                     Adult household member
@@ -857,11 +864,17 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
           </div>
           <label className="flex items-center gap-3 text-sm">
             <input type="checkbox" checked={form.consent.releaseMedicalFinancial} onChange={(e) => updateSection("consent", { releaseMedicalFinancial: e.target.checked })} />
-            I authorize release of medical and financial information for this application
+            <span>
+              I authorize release of medical and financial information for this
+              application<span className="ml-1 text-coral">*</span>
+            </span>
           </label>
           <label className="flex items-center gap-3 text-sm">
             <input type="checkbox" checked={form.consent.contactPermission} onChange={(e) => updateSection("consent", { contactPermission: e.target.checked })} />
-            PCSN may contact providers, hospitals, insurers, manufacturers, and assistance foundations
+            <span>
+              PCSN may contact providers, hospitals, insurers, manufacturers,
+              and assistance foundations<span className="ml-1 text-coral">*</span>
+            </span>
           </label>
           <label className="flex items-start gap-3 text-sm leading-6">
             <input
@@ -878,10 +891,10 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
               I understand that Phoenix Cancer Support Network cannot guarantee
               approval, funding, medication assistance, or hospital financial
               assistance, and that all decisions are made by the sponsoring
-              organizations.
+              organizations.<span className="ml-1 text-coral">*</span>
             </span>
           </label>
-          <TextField label="Electronic signature" value={form.consent.signature} onChange={(e) => updateSection("consent", { signature: e.target.value })} />
+          <TextField required label="Electronic signature" value={form.consent.signature} onChange={(e) => updateSection("consent", { signature: e.target.value })} />
         </div>
       ) : null}
 
