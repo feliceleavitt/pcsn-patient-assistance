@@ -233,6 +233,7 @@ export function IntakeForm() {
   const [form, setForm] = useState(initialState);
   const [files, setFiles] = useState<Partial<Record<DocumentType, File[]>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const isManufacturer =
     form.assistanceType === "manufacturer" || form.assistanceType === "both";
   const isHospital =
@@ -314,40 +315,65 @@ export function IntakeForm() {
 
   async function submit() {
     setSubmitting(true);
-    const householdMembers = form.household.members.map((member) =>
-      member.relationship === "Patient"
-        ? {
-            ...member,
-            name: `${form.patient.firstName} ${form.patient.lastName}`.trim(),
-            employmentStatus: form.patient.employmentStatus,
-            incomeSources: form.patient.incomeSources,
-          }
-        : member,
-    );
-    const body = new FormData();
-    body.append(
-      "payload",
-      JSON.stringify({
-        ...form,
-        household: {
-          ...form.household,
-          employmentStatus: form.patient.employmentStatus,
-          members: householdMembers,
-        },
-        consent: {
-          ...form.consent,
-          signedAt: new Date().toISOString(),
-        },
-      }),
-    );
-    Object.entries(files).forEach(([documentType, selectedFiles]) => {
-      selectedFiles?.forEach((file) =>
-        body.append(`document:${documentType}`, file),
+    setSubmitError("");
+
+    try {
+      const householdMembers = form.household.members.map((member) =>
+        member.relationship === "Patient"
+          ? {
+              ...member,
+              name: `${form.patient.firstName} ${form.patient.lastName}`.trim(),
+              employmentStatus: form.patient.employmentStatus,
+              incomeSources: form.patient.incomeSources,
+            }
+          : member,
       );
-    });
-    const response = await fetch("/api/intake", { method: "POST", body });
-    setSubmitting(false);
-    if (response.ok) router.push("/intake/confirmation");
+      const body = new FormData();
+      body.append(
+        "payload",
+        JSON.stringify({
+          ...form,
+          household: {
+            ...form.household,
+            employmentStatus: form.patient.employmentStatus,
+            householdSize: Math.max(
+              form.household.householdSize,
+              householdMembers.length,
+            ),
+            members: householdMembers,
+          },
+          consent: {
+            ...form.consent,
+            signedAt: new Date().toISOString(),
+          },
+        }),
+      );
+      Object.entries(files).forEach(([documentType, selectedFiles]) => {
+        selectedFiles?.forEach((file) =>
+          body.append(`document:${documentType}`, file),
+        );
+      });
+      const response = await fetch("/api/intake", { method: "POST", body });
+
+      if (response.ok) {
+        router.replace("/intake/confirmation");
+        return;
+      }
+
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      setSubmitError(
+        result?.error ??
+          "We could not submit your application. Please check the form and try again.",
+      );
+    } catch {
+      setSubmitError(
+        "We could not submit your application. Please check your connection and try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -743,6 +769,14 @@ export function IntakeForm() {
           </Button>
         )}
       </div>
+      {submitError ? (
+        <div
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800"
+        >
+          {submitError}
+        </div>
+      ) : null}
     </div>
   );
 }
