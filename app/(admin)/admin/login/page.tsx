@@ -19,7 +19,10 @@ export default function AdminLoginPage() {
       body: JSON.stringify({ email, password }),
     });
     if (!response.ok) {
-      setError("Login failed");
+      const result = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      setError(result?.error ?? "Login failed");
       return;
     }
     router.push("/admin");
@@ -33,17 +36,16 @@ export default function AdminLoginPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-pine">
             Staff access
           </p>
-          <h1 className="mt-2 text-2xl font-semibold">Admin login</h1>
+          <h1 className="mt-2 text-2xl font-semibold">Volunteer login</h1>
         </div>
         <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         {error ? <p className="text-sm text-coral">{error}</p> : null}
         <Button onClick={submit}>Sign in</Button>
-        <div className="rounded-md bg-paper p-3 text-sm text-slate-600">
-          <p className="font-medium text-ink">Local demo login</p>
-          <p>Email: demo@pcsn.local</p>
-          <p>Password: demo</p>
-        </div>
+        <p className="rounded-md bg-paper p-3 text-sm text-slate-600">
+          Volunteer access is limited to approved Phoenix Cancer Support Network
+          accounts.
+        </p>
       </div>
     </main>
   );
