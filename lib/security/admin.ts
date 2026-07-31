@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { AdminRole } from "@/lib/types";
 import { demoSessionToken, isDemoMode } from "@/lib/demo/admin";
+import { isVolunteerEmail, verifyVolunteerSessionToken } from "@/lib/security/volunteers";
 
 const cookieName =
   process.env.ADMIN_SESSION_COOKIE_NAME ?? "pcsn_admin_session";
@@ -19,6 +20,14 @@ export async function requireAdminSession() {
     };
   }
 
+  const volunteerSession = verifyVolunteerSessionToken(token);
+  if (volunteerSession) {
+    return {
+      ...volunteerSession,
+      token,
+    };
+  }
+
   const supabase = createServiceClient();
   const {
     data: { user },
@@ -26,6 +35,7 @@ export async function requireAdminSession() {
   } = await supabase.auth.getUser(token);
 
   if (error || !user) redirect("/admin/login");
+  if (!isVolunteerEmail(user.email)) redirect("/admin/login");
 
   const { data: roleRow } = await supabase
     .from("admin_roles")
