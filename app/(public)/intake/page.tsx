@@ -1,8 +1,24 @@
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { IntakeForm } from "@/components/intake/IntakeForm";
+import { getPatientSession } from "@/lib/security/patient";
+import { createServiceClient } from "@/lib/supabase/server";
+import type { IntakePayload } from "@/lib/types";
 
-export default function IntakePage() {
+export default async function IntakePage() {
+  const patientSession = await getPatientSession();
+  if (!patientSession) {
+    redirect("/patient/login?next=/intake");
+  }
+
+  const supabase = createServiceClient();
+  const { data: draft } = await supabase
+    .from("intake_drafts")
+    .select("payload, updated_at")
+    .eq("user_id", patientSession.user.id)
+    .maybeSingle();
+
   return (
     <main className="min-h-screen bg-paper">
       <div className="grid min-h-screen lg:grid-cols-[minmax(320px,0.8fr)_1.2fr]">
@@ -33,8 +49,8 @@ export default function IntakePage() {
                   Financial assistance application
                 </h1>
                 <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                  Patients can create a profile before submitting to come back
-                  later and upload anything a volunteer says is missing.
+                  You are signed in as {patientSession.user.email}. Your answers
+                  can be saved so you can come back later before submitting.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -52,7 +68,10 @@ export default function IntakePage() {
                 </Link>
               </div>
             </div>
-            <IntakeForm />
+            <IntakeForm
+              initialDraft={(draft?.payload as IntakePayload | null) ?? null}
+              draftUpdatedAt={draft?.updated_at ?? null}
+            />
             <section className="grid gap-3 rounded-md border border-slate-200 bg-white p-5 text-sm leading-6 text-slate-700 shadow-soft">
               <h2 className="text-lg font-semibold text-ink">
                 Important Disclaimer
