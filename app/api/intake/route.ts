@@ -99,6 +99,56 @@ const payloadSchema = z.object({
   }),
 });
 
+const fieldLabels: Record<string, string> = {
+  "patient.firstName": "patient first name",
+  "patient.lastName": "patient last name",
+  "patient.dateOfBirth": "patient date of birth",
+  "patient.phone": "patient phone number",
+  "patient.email": "patient email",
+  "patient.addressLine1": "patient address",
+  "patient.city": "patient city",
+  "patient.state": "patient state",
+  "patient.postalCode": "patient postal code",
+  "patient.employmentStatus": "patient employment status",
+  "diagnosis.cancerType": "cancer type",
+  "diagnosis.diagnosisDate": "diagnosis date",
+  "diagnosis.treatmentPlan": "treatment plan",
+  "provider.clinicName": "clinic name",
+  "provider.providerName": "provider name",
+  "provider.npi": "provider NPI",
+  "provider.phone": "provider phone number",
+  "provider.addressLine1": "provider address",
+  "provider.city": "provider city",
+  "provider.state": "provider state",
+  "provider.postalCode": "provider postal code",
+  "household.monthlyIncome": "monthly household income",
+  "household.annualIncome": "annual household income",
+  "household.householdSize": "household size",
+  "household.employmentStatus": "patient employment status",
+  "consent.releaseMedicalFinancial": "authorization checkbox",
+  "consent.contactPermission": "contact permission checkbox",
+  "consent.noGuaranteeAcknowledgment": "no-guarantee checkbox",
+  "consent.signature": "electronic signature",
+};
+
+function formatValidationError(error: z.ZodError) {
+  const labels = error.issues
+    .map((issue) => {
+      const path = issue.path
+        .filter((part) => typeof part === "string")
+        .join(".");
+      return fieldLabels[path] ?? path;
+    })
+    .filter(Boolean);
+  const uniqueLabels = [...new Set(labels)];
+
+  if (!uniqueLabels.length) {
+    return "Please check the form for missing or incorrect information.";
+  }
+
+  return `Please check: ${uniqueLabels.slice(0, 6).join(", ")}.`;
+}
+
 export async function POST(request: Request) {
   const formData = await request.formData();
   const rawPayload = formData.get("payload");
@@ -106,9 +156,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing payload" }, { status: 400 });
   }
 
-  const parsed = payloadSchema.safeParse(JSON.parse(rawPayload));
+  let payloadJson: unknown;
+  try {
+    payloadJson = JSON.parse(rawPayload);
+  } catch {
+    return NextResponse.json(
+      { error: "We could not read the form. Please try again." },
+      { status: 400 },
+    );
+  }
+
+  const parsed = payloadSchema.safeParse(payloadJson);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    return NextResponse.json(
+      { error: formatValidationError(parsed.error) },
+      { status: 400 },
+    );
   }
 
   const payload = parsed.data;
