@@ -23,12 +23,20 @@ export default function IntakeConfirmationPage() {
             changes.
           </p>
         </div>
-        <Link
-          href={websiteUrl}
-          className="inline-flex h-11 w-fit items-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
-        >
-          Return to PCSN website
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/patient/login"
+            className="inline-flex h-11 w-fit items-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
+          >
+            Sign in to patient profile
+          </Link>
+          <Link
+            href={websiteUrl}
+            className="inline-flex h-11 w-fit items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-ink"
+          >
+            Return to PCSN website
+          </Link>
+        </div>
       </section>
     </main>
   );
