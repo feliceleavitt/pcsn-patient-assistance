@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { sendNewSubmissionNotification } from "@/lib/notifications/email";
 import { encryptBuffer } from "@/lib/security/crypto";
+import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const payloadSchema = z.object({
@@ -107,10 +109,12 @@ export async function POST(request: Request) {
   }
 
   const payload = parsed.data;
+  const patientSession = await getPatientSession();
   const supabase = createServiceClient();
   const { data: patient, error: patientError } = await supabase
     .from("patients")
     .insert({
+      user_id: patientSession?.user.id ?? null,
       first_name: payload.patient.firstName,
       last_name: payload.patient.lastName,
       date_of_birth: payload.patient.dateOfBirth,
@@ -203,6 +207,8 @@ export async function POST(request: Request) {
       encryption_tag: encrypted.tag,
     });
   }
+
+  await sendNewSubmissionNotification();
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }
