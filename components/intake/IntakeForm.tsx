@@ -136,6 +136,18 @@ const employmentOptions = [
   "Prefer not to say",
 ];
 
+const fieldStepLabels = [
+  "Program",
+  "Patient",
+  "Caregiver",
+  "Treatment",
+  "Provider",
+  "Insurance",
+  "Household",
+  "Documents",
+  "Consent",
+] as const;
+
 const initialState: IntakePayload = {
   assistanceType: "manufacturer",
   patient: {
@@ -313,21 +325,89 @@ export function IntakeForm() {
     });
   }
 
+  function hasText(value: string | undefined) {
+    return Boolean(value?.trim());
+  }
+
+  function findMissingRequiredStep() {
+    const requiredByStep: Array<[number, boolean, string]> = [
+      [1, hasText(form.patient.firstName), "Patient first name is required."],
+      [1, hasText(form.patient.lastName), "Patient last name is required."],
+      [1, hasText(form.patient.dateOfBirth), "Patient date of birth is required."],
+      [1, hasText(form.patient.phone), "Patient phone number is required."],
+      [1, hasText(form.patient.email), "Patient email is required."],
+      [1, hasText(form.patient.addressLine1), "Patient address is required."],
+      [1, hasText(form.patient.city), "Patient city is required."],
+      [1, hasText(form.patient.state), "Patient state is required."],
+      [1, hasText(form.patient.postalCode), "Patient postal code is required."],
+      [1, hasText(form.patient.employmentStatus), "Patient employment status is required."],
+      [3, hasText(form.diagnosis.cancerType), "Cancer type is required."],
+      [3, hasText(form.diagnosis.diagnosisDate), "Diagnosis date is required."],
+      [3, hasText(form.diagnosis.treatmentPlan), "Treatment plan is required."],
+      [3, !isManufacturer || hasText(form.diagnosis.medicationRequested), "Medication is required for medication assistance."],
+      [4, hasText(form.provider.clinicName), "Clinic name is required."],
+      [4, hasText(form.provider.providerName), "Provider name is required."],
+      [4, hasText(form.provider.npi), "Provider NPI is required."],
+      [4, hasText(form.provider.phone), "Provider phone number is required."],
+      [4, hasText(form.provider.addressLine1), "Provider address is required."],
+      [4, hasText(form.provider.city), "Provider city is required."],
+      [4, hasText(form.provider.state), "Provider state is required."],
+      [4, hasText(form.provider.postalCode), "Provider postal code is required."],
+      [6, form.household.householdSize > 0, "Household size is required."],
+    ];
+
+    return requiredByStep.find(([, isComplete]) => !isComplete);
+  }
+
   async function submit() {
+    const missing = findMissingRequiredStep();
+    if (missing) {
+      const [missingStep, , message] = missing;
+      setStep(missingStep);
+      setSubmitError(`${message} Please complete the ${fieldStepLabels[missingStep]} section and try again.`);
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError("");
 
     try {
-      const householdMembers = form.household.members.map((member) =>
-        member.relationship === "Patient"
+      const householdMembers = form.household.members
+        .filter((member) => {
+          if (member.relationship === "Patient") return true;
+          return (
+            hasText(member.name) ||
+            hasText(member.relationship) ||
+            member.age > 0 ||
+            hasText(member.employmentStatus) ||
+            member.incomeSources.some(hasText)
+          );
+        })
+        .map((member) =>
+          member.relationship === "Patient"
           ? {
               ...member,
               name: `${form.patient.firstName} ${form.patient.lastName}`.trim(),
               employmentStatus: form.patient.employmentStatus,
               incomeSources: form.patient.incomeSources,
-            }
+          }
           : member,
+        );
+
+      const incompleteMemberIndex = householdMembers.findIndex(
+        (member) =>
+          !hasText(member.name) ||
+          !hasText(member.relationship) ||
+          member.age < 0,
       );
+      if (incompleteMemberIndex >= 0) {
+        setStep(6);
+        setSubmitError(
+          "Please complete each household member's name and relationship, or remove blank household members.",
+        );
+        return;
+      }
+
       const body = new FormData();
       body.append(
         "payload",
