@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { IntakeForm } from "@/components/intake/IntakeForm";
 
 export default function IntakePage() {
@@ -23,13 +24,33 @@ export default function IntakePage() {
         </section>
         <section className="flex items-center p-5 md:p-10">
           <div className="mx-auto grid w-full max-w-4xl gap-8">
-            <div className="grid gap-2">
-              <p className="text-sm font-semibold uppercase tracking-wide text-pine">
-                Cancer support nonprofit
-              </p>
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-                Financial assistance application
-              </h1>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="grid gap-2">
+                <p className="text-sm font-semibold uppercase tracking-wide text-pine">
+                  Cancer support nonprofit
+                </p>
+                <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+                  Financial assistance application
+                </h1>
+                <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                  Patients can create a profile before submitting to come back
+                  later and upload anything a volunteer says is missing.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/patient/login"
+                  className="inline-flex h-11 items-center rounded-md bg-pine px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-pine/90"
+                >
+                  Patient sign in
+                </Link>
+                <Link
+                  href="/admin/login"
+                  className="inline-flex h-11 items-center rounded-md border border-pine/30 bg-white px-4 text-sm font-semibold text-pine shadow-soft transition hover:border-pine hover:bg-mist"
+                >
+                  Volunteer login
+                </Link>
+              </div>
             </div>
             <IntakeForm />
             <section className="grid gap-3 rounded-md border border-slate-200 bg-white p-5 text-sm leading-6 text-slate-700 shadow-soft">
