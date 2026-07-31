@@ -6,22 +6,25 @@ export default function IntakeConfirmationPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-paper p-5">
       <section className="grid w-full max-w-2xl gap-5 rounded-md bg-white p-6 shadow-soft md:p-8">
-        <h1 className="text-3xl font-semibold">Your request has been submitted.</h1>
+        <h1 className="text-3xl font-semibold">
+          Your application has been successfully submitted.
+        </h1>
         <div className="grid gap-4 text-sm leading-6 text-slate-700">
           <p>
-            Thank you for trusting Phoenix Cancer Support Network. A volunteer
-            will review your information and contact you if anything else is
-            needed.
+            Thank you for trusting Phoenix Cancer Support Network. A PCSN
+            volunteer will now start working on helping you apply for financial
+            assistance programs.
           </p>
           <p>
-            Many assistance programs take several days to a few weeks to process
-            requests. Some programs may contact you, your provider, or PCSN
-            directly with updates.
+            We will contact you if anything is missing or if we need more
+            information. You will also receive an email confirming that your
+            application was submitted.
           </p>
           <p>
-            You do not need to submit this form again unless your information
-            changes.
+            Many programs send status updates directly by mail or email. Some
+            programs may contact you, your provider, or PCSN directly.
           </p>
+          <p>Please do not submit this form again unless your information changes.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link
