@@ -23,7 +23,8 @@ const passwordSchema = z.object({
 
 export async function POST(request: Request) {
   const session = await requireAdminSessionForPasswordChange();
-  if (!isVolunteerEmail(session.user.email)) {
+  const email = session.user.email;
+  if (!email || !isVolunteerEmail(email)) {
     return NextResponse.json({ error: "Volunteer access required." }, { status: 403 });
   }
 
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   const service = createServiceClient();
   const passwordRecord = hashVolunteerPassword(parsed.data.password);
   const { error } = await service.from("volunteer_credentials").upsert({
-    email: session.user.email.toLowerCase(),
+    email: email.toLowerCase(),
     ...passwordRecord,
     must_change_password: false,
   });
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
   const response = NextResponse.json({ ok: true });
   response.cookies.set(
     cookieName,
-    createVolunteerSessionToken(session.user.email, {
+    createVolunteerSessionToken(email, {
       mustChangePassword: false,
     }),
     {
