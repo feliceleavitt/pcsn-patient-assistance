@@ -41,7 +41,15 @@ export default async function AdminDashboardPage() {
               order.
             </p>
           </div>
-          <AdminAutoRefresh />
+          <div className="grid gap-2 justify-items-start md:justify-items-end">
+            <Link
+              href="/admin/resources"
+              className="inline-flex h-10 items-center justify-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
+            >
+              Volunteer resources
+            </Link>
+            <AdminAutoRefresh />
+          </div>
         </div>
 
         <section className="grid gap-3 rounded-md border border-pine/20 bg-white p-5 shadow-soft md:grid-cols-[1fr_auto] md:items-center">
