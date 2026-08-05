@@ -18,14 +18,15 @@ export default function AdminLoginPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
+    const result = (await response.json().catch(() => null)) as {
+      error?: string;
+      mustChangePassword?: boolean;
+    } | null;
     if (!response.ok) {
-      const result = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
       setError(result?.error ?? "Login failed");
       return;
     }
-    router.push("/admin");
+    router.push(result?.mustChangePassword ? "/admin/change-password" : "/admin");
     router.refresh();
   }
 

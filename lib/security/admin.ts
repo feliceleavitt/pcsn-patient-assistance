@@ -22,6 +22,9 @@ export async function requireAdminSession() {
 
   const volunteerSession = verifyVolunteerSessionToken(token);
   if (volunteerSession) {
+    if (volunteerSession.mustChangePassword) {
+      redirect("/admin/change-password");
+    }
     return {
       ...volunteerSession,
       token,
@@ -50,4 +53,19 @@ export async function requireAdminSession() {
     role: roleRow.role,
     token,
   };
+}
+
+export async function requireAdminSessionForPasswordChange() {
+  const token = (await cookies()).get(cookieName)?.value;
+  if (!token) redirect("/admin/login");
+
+  const volunteerSession = verifyVolunteerSessionToken(token);
+  if (volunteerSession) {
+    return {
+      ...volunteerSession,
+      token,
+    };
+  }
+
+  return requireAdminSession();
 }

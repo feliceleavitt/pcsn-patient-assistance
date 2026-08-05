@@ -143,6 +143,80 @@ export default async function SubmissionDetailPage({
               )}
             </div>
             <div className="grid gap-3">
+              <h3 className="font-semibold">Enrollment form worksheet</h3>
+              <p className="text-sm leading-6 text-slate-600">
+                Use this section when transferring information into patient
+                assistance, hospital financial assistance, or foundation forms.
+              </p>
+              <dl className="grid gap-3 rounded-md bg-paper p-4 text-sm md:grid-cols-2">
+                <div>
+                  <dt className="text-slate-500">Patient full name</dt>
+                  <dd>
+                    {submission.patients.first_name} {submission.patients.last_name}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Date of birth</dt>
+                  <dd>{submission.patients.date_of_birth}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Phone</dt>
+                  <dd>{submission.patients.phone}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Email</dt>
+                  <dd>{submission.patients.email}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Diagnosis</dt>
+                  <dd>{submission.cancer_type}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Medication</dt>
+                  <dd>{submission.medication_requested || "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Prescriber/provider</dt>
+                  <dd>{submission.provider_name}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Provider NPI</dt>
+                  <dd>{submission.provider_npi}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Provider phone</dt>
+                  <dd>{submission.provider_phone}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Provider fax</dt>
+                  <dd>{submission.provider_fax || "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Clinic address</dt>
+                  <dd>
+                    {submission.provider_address_line_1}
+                    {submission.provider_address_line_2
+                      ? `, ${submission.provider_address_line_2}`
+                      : ""}
+                    , {submission.provider_city}, {submission.provider_state}{" "}
+                    {submission.provider_postal_code}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Hospital account number</dt>
+                  <dd>{submission.hospital_account_number || "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Household size</dt>
+                  <dd>{submission.household_size}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Annual household income</dt>
+                  <dd>${Number(submission.annual_income).toLocaleString()}</dd>
+                </div>
+              </dl>
+            </div>
+            <div className="grid gap-3">
               <h3 className="font-semibold">Notes</h3>
               {submission.admin_notes.length ? (
                 submission.admin_notes.map((note: { id: string; note: string; created_at: string }) => (

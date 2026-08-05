@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import type { ApplicationStatus } from "@/lib/types";
 
@@ -22,6 +23,7 @@ export function StatusControls({
   initialStatus: ApplicationStatus;
   initialMissingDocuments: string[];
 }) {
+  const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [missingDocuments, setMissingDocuments] = useState(
     initialMissingDocuments.join(", "),
@@ -43,7 +45,10 @@ export function StatusControls({
       }),
     });
     setSaved(response.ok);
-    if (response.ok) setNote("");
+    if (response.ok) {
+      setNote("");
+      router.refresh();
+    }
   }
 
   return (

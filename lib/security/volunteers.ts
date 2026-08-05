@@ -9,6 +9,9 @@ const defaultVolunteerEmails = [
 ];
 
 const sessionTtlSeconds = 60 * 60 * 8;
+const passwordIterations = 210_000;
+const passwordKeyLength = 32;
+const passwordDigest = "sha256";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -71,11 +74,51 @@ export function authenticateVolunteer(email: string, password: string) {
   };
 }
 
-export function createVolunteerSessionToken(email: string) {
+export function hashVolunteerPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = crypto
+    .pbkdf2Sync(
+      password,
+      salt,
+      passwordIterations,
+      passwordKeyLength,
+      passwordDigest,
+    )
+    .toString("base64url");
+
+  return {
+    password_hash: hash,
+    password_salt: salt,
+  };
+}
+
+export function verifyVolunteerPassword(
+  password: string,
+  storedHash: string,
+  storedSalt: string,
+) {
+  const hash = crypto
+    .pbkdf2Sync(
+      password,
+      storedSalt,
+      passwordIterations,
+      passwordKeyLength,
+      passwordDigest,
+    )
+    .toString("base64url");
+
+  return safeEqual(hash, storedHash);
+}
+
+export function createVolunteerSessionToken(
+  email: string,
+  options: { mustChangePassword?: boolean } = {},
+) {
   const payload = base64UrlEncode(
     JSON.stringify({
       email: normalizeEmail(email),
       exp: Math.floor(Date.now() / 1000) + sessionTtlSeconds,
+      mustChangePassword: Boolean(options.mustChangePassword),
     }),
   );
   return `${payload}.${sign(payload)}`;
@@ -93,7 +136,7 @@ export function verifyVolunteerSessionToken(token: string) {
   }
   if (!safeEqual(signature, expectedSignature)) return null;
 
-  let parsed: { email?: string; exp?: number };
+  let parsed: { email?: string; exp?: number; mustChangePassword?: boolean };
   try {
     parsed = JSON.parse(base64UrlDecode(payload)) as {
       email?: string;
@@ -110,6 +153,7 @@ export function verifyVolunteerSessionToken(token: string) {
   return {
     user: { id: `volunteer:${email}`, email },
     role: "admin" as AdminRole,
+    mustChangePassword: Boolean(parsed.mustChangePassword),
   };
 }
 

@@ -12,6 +12,7 @@ const updateSchema = z.object({
     "missing_documents",
     "approved",
     "denied",
+    "renewal_needed",
   ]),
   missingDocuments: z.array(z.string()),
   note: z.string().optional(),
