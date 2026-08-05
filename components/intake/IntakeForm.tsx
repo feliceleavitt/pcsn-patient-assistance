@@ -6,6 +6,7 @@ import { FileUp, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AutocompleteField } from "@/components/ui/AutocompleteField";
 import { TextAreaField, TextField } from "@/components/ui/Field";
+import { arizonaTreatmentFacilities } from "@/lib/resources";
 import type { IntakePayload } from "@/lib/types";
 
 type DocumentType =
@@ -471,6 +472,7 @@ const initialState: IntakePayload = {
   hospital: {
     accountNumber: "",
     guarantorNumber: "",
+    treatmentFacilities: [],
   },
   insurance: {
     hasInsurance: true,
@@ -610,6 +612,15 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
     updateSection("household", {
       members,
       householdSize: Math.max(members.length, 1),
+    });
+  }
+
+  function toggleTreatmentFacility(facility: string, checked: boolean) {
+    const selected = form.hospital.treatmentFacilities ?? [];
+    updateSection("hospital", {
+      treatmentFacilities: checked
+        ? [...new Set([...selected, facility])]
+        : selected.filter((item) => item !== facility),
     });
   }
 
@@ -922,6 +933,33 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
               <TextField label="Person responsible for the bill number" value={form.hospital.guarantorNumber} onChange={(e) => updateSection("hospital", { guarantorNumber: e.target.value })} />
             </>
           ) : null}
+          <div className="grid gap-3 md:col-span-2">
+            <div>
+              <h3 className="font-semibold">Arizona hospitals or cancer centers</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Select any places where the patient is receiving cancer care or
+                has medical bills. This helps PCSN know who to contact.
+              </p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {arizonaTreatmentFacilities.map((facility) => (
+                <label
+                  key={facility}
+                  className="flex items-start gap-3 rounded-md border border-slate-300 bg-white p-4 text-sm"
+                >
+                  <input
+                    className="mt-1"
+                    type="checkbox"
+                    checked={(form.hospital.treatmentFacilities ?? []).includes(facility)}
+                    onChange={(event) =>
+                      toggleTreatmentFacility(facility, event.target.checked)
+                    }
+                  />
+                  <span>{facility}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       ) : null}
 
