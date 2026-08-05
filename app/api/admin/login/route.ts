@@ -4,8 +4,10 @@ import { demoSessionToken, isDemoMode } from "@/lib/demo/admin";
 import {
   authenticateVolunteer,
   createVolunteerSessionToken,
+  hashVolunteerPassword,
   isVolunteerEmail,
   sessionTtlSeconds,
+  verifyVolunteerPassword,
 } from "@/lib/security/volunteers";
 
 const cookieName =
@@ -13,12 +15,90 @@ const cookieName =
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const volunteer = authenticateVolunteer(body.email ?? "", body.password ?? "");
-  if (volunteer) {
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const password = String(body.password ?? "");
+
+  if (
+    isDemoMode() &&
+    email === "demo@pcsn.local" &&
+    password === "demo"
+  ) {
     const response = NextResponse.json({ ok: true });
+    response.cookies.set(cookieName, demoSessionToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: false,
+      path: "/",
+      maxAge: 60 * 60 * 8,
+    });
+    return response;
+  }
+
+  const service = createServiceClient();
+
+  if (isVolunteerEmail(email)) {
+    const { data: credential } = await service
+      .from("volunteer_credentials")
+      .select("email,password_hash,password_salt,must_change_password")
+      .eq("email", email)
+      .maybeSingle<{
+        email: string;
+        password_hash: string;
+        password_salt: string;
+        must_change_password: boolean;
+      }>();
+
+    if (credential) {
+      const validPassword = verifyVolunteerPassword(
+        password,
+        credential.password_hash,
+        credential.password_salt,
+      );
+      if (!validPassword) {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      }
+
+      const response = NextResponse.json({
+        ok: true,
+        mustChangePassword: credential.must_change_password,
+      });
+      let token: string;
+      try {
+        token = createVolunteerSessionToken(email, {
+          mustChangePassword: credential.must_change_password,
+        });
+      } catch {
+        return NextResponse.json(
+          { error: "Volunteer login is not configured" },
+          { status: 500 },
+        );
+      }
+      response.cookies.set(cookieName, token, {
+        httpOnly: true,
+        sameSite: "strict",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: sessionTtlSeconds,
+      });
+      return response;
+    }
+  }
+
+  const volunteer = authenticateVolunteer(email, password);
+  if (volunteer) {
+    const passwordRecord = hashVolunteerPassword(password);
+    await service.from("volunteer_credentials").upsert({
+      email: volunteer.email,
+      ...passwordRecord,
+      must_change_password: true,
+    });
+
+    const response = NextResponse.json({ ok: true, mustChangePassword: true });
     let token: string;
     try {
-      token = createVolunteerSessionToken(volunteer.email);
+      token = createVolunteerSessionToken(volunteer.email, {
+        mustChangePassword: true,
+      });
     } catch {
       return NextResponse.json(
         { error: "Volunteer login is not configured" },
@@ -31,22 +111,6 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: sessionTtlSeconds,
-    });
-    return response;
-  }
-
-  if (
-    isDemoMode() &&
-    body.email === "demo@pcsn.local" &&
-    body.password === "demo"
-  ) {
-    const response = NextResponse.json({ ok: true });
-    response.cookies.set(cookieName, demoSessionToken, {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: false,
-      path: "/",
-      maxAge: 60 * 60 * 8,
     });
     return response;
   }
@@ -64,7 +128,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Volunteer access required" }, { status: 403 });
   }
 
-  const service = createServiceClient();
   const { data: role } = await service
     .from("admin_roles")
     .select("role")
