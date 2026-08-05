@@ -54,6 +54,7 @@ export type IntakePayload = {
   hospital: {
     accountNumber?: string;
     guarantorNumber?: string;
+    treatmentFacilities?: string[];
   };
   insurance: {
     hasInsurance: boolean;
