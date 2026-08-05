@@ -54,6 +54,7 @@ const payloadSchema = z.object({
   hospital: z.object({
     accountNumber: z.string().optional(),
     guarantorNumber: z.string().optional(),
+    treatmentFacilities: z.array(z.string()).default([]),
   }),
   insurance: z.object({
     hasInsurance: z.boolean(),
@@ -229,6 +230,7 @@ export async function POST(request: Request) {
       provider_postal_code: payload.provider.postalCode,
       hospital_account_number: payload.hospital.accountNumber || null,
       guarantor_number: payload.hospital.guarantorNumber || null,
+      treatment_facilities: payload.hospital.treatmentFacilities,
       has_insurance: payload.insurance.hasInsurance,
       insurance_details: payload.insurance,
       monthly_income: payload.household.monthlyIncome,
