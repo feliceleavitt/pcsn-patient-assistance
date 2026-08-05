@@ -24,6 +24,9 @@ export default async function SubmissionDetailPage({
       ).data;
 
   if (!submission) notFound();
+  const treatmentFacilities = Array.isArray(submission.treatment_facilities)
+    ? (submission.treatment_facilities as string[])
+    : [];
 
   await recordAuditEvent({
     actorId: session.user.id,
@@ -90,6 +93,14 @@ export default async function SubmissionDetailPage({
               <div>
                 <dt className="text-slate-500">Hospital account</dt>
                 <dd>{submission.hospital_account_number || "N/A"}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Arizona care sites</dt>
+                <dd>
+                  {treatmentFacilities.length
+                    ? treatmentFacilities.join(", ")
+                    : "None selected"}
+                </dd>
               </div>
               <div>
                 <dt className="text-slate-500">Annual income</dt>
@@ -205,6 +216,14 @@ export default async function SubmissionDetailPage({
                 <div>
                   <dt className="text-slate-500">Hospital account number</dt>
                   <dd>{submission.hospital_account_number || "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Arizona care sites</dt>
+                  <dd>
+                    {treatmentFacilities.length
+                      ? treatmentFacilities.join(", ")
+                      : "None selected"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Household size</dt>
