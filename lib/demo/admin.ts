@@ -30,6 +30,7 @@ type DemoSubmission = {
   provider_state: string;
   provider_postal_code: string;
   hospital_account_number: string | null;
+  treatment_facilities: string[];
   cancer_type: string;
   missing_documents: string[];
   patients: {
@@ -79,6 +80,10 @@ const demoSubmissions: DemoSubmission[] = [
     provider_state: "AZ",
     provider_postal_code: "85016",
     hospital_account_number: "HSP-240018",
+    treatment_facilities: [
+      "Banner MD Anderson Cancer Center",
+      "Dignity Health Cancer Institute at St. Joseph's",
+    ],
     cancer_type: "Breast cancer",
     missing_documents: ["Two recent pay stubs", "Insurance card, back"],
     patients: {
@@ -149,6 +154,7 @@ const demoSubmissions: DemoSubmission[] = [
     provider_state: "AZ",
     provider_postal_code: "85012",
     hospital_account_number: null,
+    treatment_facilities: ["Mayo Clinic Arizona"],
     cancer_type: "Leukemia",
     missing_documents: [],
     patients: {
