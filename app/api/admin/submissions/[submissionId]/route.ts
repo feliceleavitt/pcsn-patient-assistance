@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
+import { actorColumns } from "@/lib/security/actors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isDemoMode, updateDemoSubmission } from "@/lib/demo/admin";
 
@@ -51,8 +52,8 @@ export async function PATCH(
   if (body.note?.trim()) {
     await supabase.from("admin_notes").insert({
       submission_id: submissionId,
-      author_id: session.user.id,
       note: body.note.trim(),
+      ...actorColumns(session.user.id, "author_id", "author_identifier"),
     });
   }
 

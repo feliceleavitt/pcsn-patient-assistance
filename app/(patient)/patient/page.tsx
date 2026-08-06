@@ -8,7 +8,7 @@ export default async function PatientPortalPage() {
   const session = await requirePatientSession();
   const { data: application } = await createServiceClient()
     .from("submissions")
-    .select("*,patients!inner(*),documents(*)")
+    .select("*,patients!inner(*),documents(*),assistance_packets(*)")
     .eq("patients.user_id", session.user.id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -54,6 +54,21 @@ export default async function PatientPortalPage() {
                   originalFilename: document.original_filename,
                   documentType: document.document_type,
                   uploadedAt: document.uploaded_at,
+                }),
+              ),
+              signatureRequests: application.assistance_packets.map(
+                (packet: {
+                  id: string;
+                  program_name: string;
+                  status: string;
+                  signature_requested_at: string | null;
+                  patient_signed_at: string | null;
+                }) => ({
+                  id: packet.id,
+                  programName: packet.program_name,
+                  status: packet.status,
+                  signatureRequestedAt: packet.signature_requested_at,
+                  patientSignedAt: packet.patient_signed_at,
                 }),
               ),
             }}

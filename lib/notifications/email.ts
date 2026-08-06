@@ -105,3 +105,22 @@ export async function sendPatientSubmissionConfirmation(patientEmail: string) {
     console.error("Unable to send patient confirmation:", error);
   }
 }
+
+export async function sendPatientSignatureRequest(patientEmail: string, signatureUrl: string) {
+  try {
+    await sendEmail({
+      to: patientEmail,
+      subject: "PCSN document ready for your signature",
+      text: [
+        "Phoenix Cancer Support Network has a document ready for your review and electronic signature.",
+        "",
+        "Please sign in securely to review and sign it:",
+        signatureUrl,
+        "",
+        "This email does not include medical or financial information.",
+      ].join("\n"),
+    });
+  } catch (error) {
+    console.error("Unable to send signature request:", error);
+  }
+}

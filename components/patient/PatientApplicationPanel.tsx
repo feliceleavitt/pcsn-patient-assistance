@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FileUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { TextAreaField, TextField } from "@/components/ui/Field";
@@ -25,6 +26,13 @@ type PatientApplication = {
     originalFilename: string;
     documentType: string;
     uploadedAt: string;
+  }>;
+  signatureRequests: Array<{
+    id: string;
+    programName: string;
+    status: string;
+    signatureRequestedAt: string | null;
+    patientSignedAt: string | null;
   }>;
 };
 
@@ -193,6 +201,42 @@ export function PatientApplicationPanel({
           />
         </div>
       </section>
+
+      {application.signatureRequests.length ? (
+        <section className="grid gap-4 rounded-md bg-white p-5 shadow-soft">
+          <h2 className="text-lg font-semibold">Documents to sign</h2>
+          <div className="grid gap-3">
+            {application.signatureRequests.map((request) => {
+              const needsSignature = request.status === "signature_requested";
+              return (
+                <div
+                  key={request.id}
+                  className="grid gap-3 rounded-md border border-slate-200 p-4 md:grid-cols-[1fr_auto] md:items-center"
+                >
+                  <div>
+                    <p className="font-medium">{request.programName}</p>
+                    <p className="text-sm text-slate-600">
+                      {request.patientSignedAt
+                        ? `Signed ${new Date(request.patientSignedAt).toLocaleDateString()}`
+                        : needsSignature
+                          ? "Waiting for your signature"
+                          : request.status.replaceAll("_", " ")}
+                    </p>
+                  </div>
+                  {needsSignature ? (
+                    <Link
+                      href={`/patient/signatures/${request.id}`}
+                      className="inline-flex h-10 items-center justify-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
+                    >
+                      Review and sign
+                    </Link>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 rounded-md bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold">Upload missing documents</h2>

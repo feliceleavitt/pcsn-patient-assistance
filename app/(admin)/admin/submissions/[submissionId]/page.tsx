@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PacketControls } from "@/components/admin/PacketControls";
 import { StatusControls } from "@/components/admin/StatusControls";
+import { volunteerResources } from "@/lib/resources";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -18,7 +20,7 @@ export default async function SubmissionDetailPage({
     : (
         await createServiceClient()
           .from("submissions")
-          .select("*,patients(*),documents(*),admin_notes(*)")
+          .select("*,patients(*),documents(*),admin_notes(*),assistance_packets(*)")
           .eq("id", submissionId)
           .maybeSingle()
       ).data;
@@ -251,11 +253,18 @@ export default async function SubmissionDetailPage({
               )}
             </div>
           </section>
-          <StatusControls
-            submissionId={submissionId}
-            initialStatus={submission.status}
-            initialMissingDocuments={submission.missing_documents}
-          />
+          <aside className="grid gap-6">
+            <StatusControls
+              submissionId={submissionId}
+              initialStatus={submission.status}
+              initialMissingDocuments={submission.missing_documents}
+            />
+            <PacketControls
+              submissionId={submissionId}
+              resources={volunteerResources}
+              initialPackets={submission.assistance_packets ?? []}
+            />
+          </aside>
         </div>
       </div>
     </main>
