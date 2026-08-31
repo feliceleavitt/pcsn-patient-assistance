@@ -7,7 +7,12 @@ type AuditAction =
   | "view_resources"
   | "update_submission"
   | "download_document"
-  | "download_packet";
+  | "download_packet"
+  | "download_signed_packet"
+  | "patient_sign_packet"
+  | "request_signature"
+  | "create_packet"
+  | "update_packet";
 
 export async function recordAuditEvent(input: {
   actorId: string;
