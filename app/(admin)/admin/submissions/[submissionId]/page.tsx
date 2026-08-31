@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PacketControls } from "@/components/admin/PacketControls";
 import { StatusControls } from "@/components/admin/StatusControls";
-import { volunteerResources } from "@/lib/resources";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getDemoSubmission, isDemoMode } from "@/lib/demo/admin";
+import {
+  getDemoSubmission,
+  isDemoMode,
+  markDemoSubmissionViewed,
+} from "@/lib/demo/admin";
 
 export default async function SubmissionDetailPage({
   params,
@@ -15,17 +17,22 @@ export default async function SubmissionDetailPage({
 }) {
   const { submissionId } = await params;
   const session = await requireAdminSession();
-  const submission = isDemoMode()
+  const demoMode = isDemoMode();
+  const supabase = demoMode ? null : createServiceClient();
+  const submission = demoMode
     ? getDemoSubmission(submissionId)
     : (
-        await createServiceClient()
+        await supabase!
           .from("submissions")
-          .select("*,patients(*),documents(*),admin_notes(*),assistance_packets(*)")
+          .select("*,patients(*),documents(*),admin_notes(*)")
           .eq("id", submissionId)
           .maybeSingle()
       ).data;
 
   if (!submission) notFound();
+  if (demoMode) {
+    markDemoSubmissionViewed(submissionId);
+  }
   const treatmentFacilities = Array.isArray(submission.treatment_facilities)
     ? (submission.treatment_facilities as string[])
     : [];
@@ -253,18 +260,11 @@ export default async function SubmissionDetailPage({
               )}
             </div>
           </section>
-          <aside className="grid gap-6">
-            <StatusControls
-              submissionId={submissionId}
-              initialStatus={submission.status}
-              initialMissingDocuments={submission.missing_documents}
-            />
-            <PacketControls
-              submissionId={submissionId}
-              resources={volunteerResources}
-              initialPackets={submission.assistance_packets ?? []}
-            />
-          </aside>
+          <StatusControls
+            submissionId={submissionId}
+            initialStatus={submission.status}
+            initialMissingDocuments={submission.missing_documents}
+          />
         </div>
       </div>
     </main>

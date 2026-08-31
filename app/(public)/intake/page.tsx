@@ -13,11 +13,31 @@ export default async function IntakePage() {
   }
 
   const supabase = createServiceClient();
-  const { data: draft } = await supabase
+  const { data: existingDraft } = await supabase
     .from("intake_drafts")
     .select("payload, updated_at")
     .eq("user_id", patientSession.user.id)
     .maybeSingle();
+
+  let draft = existingDraft;
+  if (!existingDraft) {
+    const { data: startedDraft } = await supabase
+      .from("intake_drafts")
+      .insert({
+        user_id: patientSession.user.id,
+        payload: {
+          patient: { email: patientSession.user.email ?? "" },
+        },
+      })
+      .select("payload, updated_at")
+      .single();
+    draft = startedDraft;
+  }
+
+  const draftPayload = draft?.payload as Partial<IntakePayload> | null | undefined;
+  const usableDraft = draftPayload?.assistanceType
+    ? (draftPayload as IntakePayload)
+    : null;
 
   return (
     <main className="min-h-screen bg-paper">
@@ -69,7 +89,7 @@ export default async function IntakePage() {
               </div>
             </div>
             <IntakeForm
-              initialDraft={(draft?.payload as IntakePayload | null) ?? null}
+              initialDraft={usableDraft}
               draftUpdatedAt={draft?.updated_at ?? null}
             />
             <section className="grid gap-3 rounded-md border border-slate-200 bg-white p-5 text-sm leading-6 text-slate-700 shadow-soft">

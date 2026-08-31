@@ -7,18 +7,42 @@ import { getDemoSubmissions, isDemoMode } from "@/lib/demo/admin";
 
 export default async function AdminDashboardPage() {
   const session = await requireAdminSession();
-  const submissions = isDemoMode()
-    ? getDemoSubmissions()
-    : (
-        await createServiceClient()
+  const demoMode = isDemoMode();
+  const supabase = demoMode ? null : createServiceClient();
+  const [submissionsResult, draftsResult, viewsResult] = demoMode
+    ? [
+        { data: getDemoSubmissions() },
+        { data: [] },
+        {
+          data: getDemoSubmissions()
+            .filter((submission) => submission.first_viewed_at)
+            .map((submission) => ({ submission_id: submission.id })),
+        },
+      ]
+    : await Promise.all([
+        supabase!
           .from("submissions")
           .select(
             "id,status,created_at,updated_at,patients(first_name,last_name),clinic_name,annual_income,assistance_type",
           )
-          .order("created_at", { ascending: true })
-      ).data;
+          .order("created_at", { ascending: true }),
+        supabase!
+          .from("intake_drafts")
+          .select("user_id,payload,created_at,updated_at")
+          .order("created_at", { ascending: true }),
+        supabase!
+          .from("audit_logs")
+          .select("submission_id")
+          .eq("action", "view_submission")
+          .not("submission_id", "is", null),
+      ]);
+  const submissions = submissionsResult.data;
+  const drafts = draftsResult.data;
+  const viewedSubmissionIds = new Set(
+    viewsResult.data?.map((view) => view.submission_id) ?? [],
+  );
   const newSubmissionCount =
-    submissions?.filter((submission) => submission.status === "submitted")
+    submissions?.filter((submission) => !viewedSubmissionIds.has(submission.id))
       .length ?? 0;
 
   await recordAuditEvent({
@@ -41,15 +65,7 @@ export default async function AdminDashboardPage() {
               order.
             </p>
           </div>
-          <div className="grid gap-2 justify-items-start md:justify-items-end">
-            <Link
-              href="/admin/resources"
-              className="inline-flex h-10 items-center justify-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
-            >
-              Volunteer resources
-            </Link>
-            <AdminAutoRefresh />
-          </div>
+          <AdminAutoRefresh />
         </div>
 
         <section className="grid gap-3 rounded-md border border-pine/20 bg-white p-5 shadow-soft md:grid-cols-[1fr_auto] md:items-center">
@@ -67,6 +83,57 @@ export default async function AdminDashboardPage() {
           >
             Refresh list
           </Link>
+        </section>
+
+        <section className="grid gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">Applications in progress</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              {drafts?.length
+                ? `${drafts.length} ${drafts.length === 1 ? "person has" : "people have"} started an application but have not submitted it.`
+                : "No one currently has an application in progress."}
+            </p>
+          </div>
+          {drafts?.length ? (
+            <div className="overflow-hidden rounded-md bg-white shadow-soft">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-mist text-left">
+                  <tr>
+                    <th className="p-4">Applicant</th>
+                    <th className="p-4">Started</th>
+                    <th className="p-4">Last active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {drafts.map((draft) => {
+                    const payload = draft.payload as {
+                      patient?: { firstName?: string; lastName?: string; email?: string };
+                    };
+                    const fullName = [
+                      payload.patient?.firstName,
+                      payload.patient?.lastName,
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    const applicant =
+                      fullName || payload.patient?.email || "Signed-in applicant";
+
+                    return (
+                      <tr key={draft.user_id} className="border-t border-slate-200">
+                        <td className="p-4 font-semibold text-ink">{applicant}</td>
+                        <td className="p-4">
+                          {new Date(draft.created_at).toLocaleString()}
+                        </td>
+                        <td className="p-4">
+                          {new Date(draft.updated_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </section>
 
         <div className="grid gap-3 rounded-md bg-mist p-4 text-sm text-slate-700 md:grid-cols-3">
@@ -101,14 +168,23 @@ export default async function AdminDashboardPage() {
                   first_name: string;
                   last_name: string;
                 };
+                const isNew = !viewedSubmissionIds.has(submission.id);
                 return (
-                  <tr key={submission.id} className="border-t border-slate-200">
+                  <tr
+                    key={submission.id}
+                    className={`border-t border-slate-200 ${isNew ? "bg-amber-50" : "bg-white"}`}
+                  >
                     <td className="p-4">
                       <Link
-                        className="font-semibold text-pine"
+                        className="inline-flex items-center gap-2 font-semibold text-pine"
                         href={`/admin/submissions/${submission.id}`}
                       >
                         {patient.first_name} {patient.last_name}
+                        {isNew ? (
+                          <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-amber-900">
+                            New
+                          </span>
+                        ) : null}
                       </Link>
                     </td>
                     <td className="p-4">{submission.clinic_name}</td>

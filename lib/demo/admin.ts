@@ -15,6 +15,7 @@ type DemoSubmission = {
   status: ApplicationStatus;
   created_at: string;
   updated_at: string;
+  first_viewed_at: string | null;
   clinic_name: string;
   annual_income: number;
   monthly_income: number;
@@ -30,7 +31,6 @@ type DemoSubmission = {
   provider_state: string;
   provider_postal_code: string;
   hospital_account_number: string | null;
-  treatment_facilities: string[];
   cancer_type: string;
   missing_documents: string[];
   patients: {
@@ -65,6 +65,7 @@ const demoSubmissions: DemoSubmission[] = [
     status: "missing_documents",
     created_at: "2026-05-12T16:20:00.000Z",
     updated_at: "2026-05-13T18:45:00.000Z",
+    first_viewed_at: null,
     clinic_name: "Desert Oncology Center",
     annual_income: 38400,
     monthly_income: 3200,
@@ -80,10 +81,6 @@ const demoSubmissions: DemoSubmission[] = [
     provider_state: "AZ",
     provider_postal_code: "85016",
     hospital_account_number: "HSP-240018",
-    treatment_facilities: [
-      "Banner MD Anderson Cancer Center",
-      "Dignity Health Cancer Institute at St. Joseph's",
-    ],
     cancer_type: "Breast cancer",
     missing_documents: ["Two recent pay stubs", "Insurance card, back"],
     patients: {
@@ -139,6 +136,7 @@ const demoSubmissions: DemoSubmission[] = [
     status: "under_review",
     created_at: "2026-05-10T14:05:00.000Z",
     updated_at: "2026-05-10T14:05:00.000Z",
+    first_viewed_at: "2026-05-10T14:10:00.000Z",
     clinic_name: "Phoenix Hematology Group",
     annual_income: 27600,
     monthly_income: 2300,
@@ -154,7 +152,6 @@ const demoSubmissions: DemoSubmission[] = [
     provider_state: "AZ",
     provider_postal_code: "85012",
     hospital_account_number: null,
-    treatment_facilities: ["Mayo Clinic Arizona"],
     cancer_type: "Leukemia",
     missing_documents: [],
     patients: {
@@ -195,6 +192,13 @@ export function getDemoSubmissions() {
 
 export function getDemoSubmission(id: string) {
   return demoSubmissions.find((submission) => submission.id === id) ?? null;
+}
+
+export function markDemoSubmissionViewed(id: string) {
+  const submission = getDemoSubmission(id);
+  if (submission && !submission.first_viewed_at) {
+    submission.first_viewed_at = new Date().toISOString();
+  }
 }
 
 export function updateDemoSubmission(
