@@ -102,6 +102,7 @@ export default async function AdminDashboardPage() {
                     <th className="p-4">Applicant</th>
                     <th className="p-4">Started</th>
                     <th className="p-4">Last active</th>
+                    <th className="p-4">Progress</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,12 +121,27 @@ export default async function AdminDashboardPage() {
 
                     return (
                       <tr key={draft.user_id} className="border-t border-slate-200">
-                        <td className="p-4 font-semibold text-ink">{applicant}</td>
+                        <td className="p-4 font-semibold text-ink">
+                          <Link
+                            className="text-pine"
+                            href={`/admin/drafts/${draft.user_id}`}
+                          >
+                            {applicant}
+                          </Link>
+                        </td>
                         <td className="p-4">
                           {new Date(draft.created_at).toLocaleString()}
                         </td>
                         <td className="p-4">
                           {new Date(draft.updated_at).toLocaleString()}
+                        </td>
+                        <td className="p-4">
+                          <Link
+                            className="font-semibold text-pine"
+                            href={`/admin/drafts/${draft.user_id}`}
+                          >
+                            View saved answers
+                          </Link>
                         </td>
                       </tr>
                     );

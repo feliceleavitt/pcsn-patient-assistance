@@ -4,6 +4,7 @@ import { isDemoMode } from "@/lib/demo/admin";
 type AuditAction =
   | "view_dashboard"
   | "view_submission"
+  | "view_intake_draft"
   | "view_resources"
   | "update_submission"
   | "download_document"
