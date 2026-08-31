@@ -8,6 +8,8 @@ type AuditAction =
   | "view_archives"
   | "archive_submission"
   | "restore_submission"
+  | "archive_intake_draft"
+  | "restore_intake_draft"
   | "view_resources"
   | "update_submission"
   | "download_document"

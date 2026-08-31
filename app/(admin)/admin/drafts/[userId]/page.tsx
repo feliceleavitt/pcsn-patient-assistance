@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
+import { DraftArchiveControls } from "@/components/admin/DraftArchiveControls";
+import { getArchivedDraftUserIds } from "@/lib/security/archive";
 
 type DraftPayload = Record<string, unknown>;
 
@@ -82,6 +84,7 @@ export default async function DraftDetailPage({
     .maybeSingle();
 
   if (!draft) notFound();
+  const archivedDraftUserIds = await getArchivedDraftUserIds();
 
   const payload = (draft.payload ?? {}) as DraftPayload;
   const sections = Object.entries(sectionLabels).map(([key, label]) => ({
@@ -109,18 +112,24 @@ export default async function DraftDetailPage({
   return (
     <main className="min-h-screen p-5 md:p-8">
       <div className="mx-auto grid max-w-5xl gap-6">
-        <div>
-          <Link href="/admin" className="text-sm font-semibold text-pine">
-            Back to dashboard
-          </Link>
-          <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-pine">
-            Application in progress
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold">{applicant}</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Started {new Date(draft.created_at).toLocaleString()} · Last saved{" "}
-            {new Date(draft.updated_at).toLocaleString()}
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Link href="/admin" className="text-sm font-semibold text-pine">
+              Back to dashboard
+            </Link>
+            <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-pine">
+              Application in progress
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold">{applicant}</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Started {new Date(draft.created_at).toLocaleString()} · Last saved{" "}
+              {new Date(draft.updated_at).toLocaleString()}
+            </p>
+          </div>
+          <DraftArchiveControls
+            userId={userId}
+            archived={archivedDraftUserIds.has(userId)}
+          />
         </div>
 
         <section className="rounded-md border border-pine/20 bg-white p-5 shadow-soft">

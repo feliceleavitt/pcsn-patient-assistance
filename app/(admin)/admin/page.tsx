@@ -4,7 +4,10 @@ import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getDemoSubmissions, isDemoMode } from "@/lib/demo/admin";
-import { getArchivedSubmissionIds } from "@/lib/security/archive";
+import {
+  getArchivedDraftUserIds,
+  getArchivedSubmissionIds,
+} from "@/lib/security/archive";
 
 export default async function AdminDashboardPage() {
   const session = await requireAdminSession();
@@ -39,7 +42,13 @@ export default async function AdminDashboardPage() {
       ]);
   const submissions = submissionsResult.data;
   const drafts = draftsResult.data;
-  const archivedSubmissionIds = await getArchivedSubmissionIds();
+  const [archivedSubmissionIds, archivedDraftUserIds] = await Promise.all([
+    getArchivedSubmissionIds(),
+    getArchivedDraftUserIds(),
+  ]);
+  const activeDrafts = drafts?.filter(
+    (draft) => !archivedDraftUserIds.has(draft.user_id),
+  );
   const activeSubmissions = submissions?.filter(
     (submission) => !archivedSubmissionIds.has(submission.id),
   );
@@ -77,7 +86,7 @@ export default async function AdminDashboardPage() {
                 href="/admin/archive"
                 className="inline-flex h-10 items-center rounded-md border border-pine/30 bg-white px-4 text-sm font-semibold text-pine"
               >
-                Archive ({archivedSubmissionIds.size})
+                Archive ({archivedSubmissionIds.size + archivedDraftUserIds.size})
               </Link>
               <AdminAutoRefresh />
             </div>
@@ -104,12 +113,12 @@ export default async function AdminDashboardPage() {
           <div>
             <h2 className="text-xl font-semibold">Applications in progress</h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              {drafts?.length
-                ? `${drafts.length} ${drafts.length === 1 ? "person has" : "people have"} started an application but have not submitted it.`
+              {activeDrafts?.length
+                ? `${activeDrafts.length} ${activeDrafts.length === 1 ? "person has" : "people have"} started an application but have not submitted it.`
                 : "No one currently has an application in progress."}
             </p>
           </div>
-          {drafts?.length ? (
+          {activeDrafts?.length ? (
             <div className="overflow-hidden rounded-md bg-white shadow-soft">
               <table className="w-full border-collapse text-sm">
                 <thead className="bg-mist text-left">
@@ -121,7 +130,7 @@ export default async function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {drafts.map((draft) => {
+                  {activeDrafts.map((draft) => {
                     const payload = draft.payload as {
                       patient?: { firstName?: string; lastName?: string; email?: string };
                     };

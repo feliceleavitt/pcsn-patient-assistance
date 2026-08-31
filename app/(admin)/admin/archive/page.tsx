@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { recordAuditEvent } from "@/lib/security/audit";
-import { getArchivedSubmissionIds } from "@/lib/security/archive";
+import {
+  getArchivedDraftUserIds,
+  getArchivedSubmissionIds,
+} from "@/lib/security/archive";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getDemoSubmissions, isDemoMode } from "@/lib/demo/admin";
 
 export default async function ArchivedApplicationsPage() {
   const session = await requireAdminSession();
-  const archivedIds = await getArchivedSubmissionIds();
+  const [archivedIds, archivedDraftUserIds] = await Promise.all([
+    getArchivedSubmissionIds(),
+    getArchivedDraftUserIds(),
+  ]);
   const submissions = isDemoMode()
     ? getDemoSubmissions().filter((submission) => archivedIds.has(submission.id))
     : archivedIds.size
@@ -21,11 +27,23 @@ export default async function ArchivedApplicationsPage() {
             .order("updated_at", { ascending: false })
         ).data
       : [];
+  const archivedDrafts = archivedDraftUserIds.size
+    ? (
+        await createServiceClient()
+          .from("intake_drafts")
+          .select("user_id,payload,created_at,updated_at")
+          .in("user_id", [...archivedDraftUserIds])
+          .order("updated_at", { ascending: false })
+      ).data
+    : [];
 
   await recordAuditEvent({
     actorId: session.user.id,
     action: "view_archives",
-    metadata: { archivedSubmissionCount: submissions?.length ?? 0 },
+    metadata: {
+      archivedSubmissionCount: submissions?.length ?? 0,
+      archivedDraftCount: archivedDrafts?.length ?? 0,
+    },
   });
 
   return (
@@ -45,6 +63,69 @@ export default async function ArchivedApplicationsPage() {
           </p>
         </div>
 
+        <section className="grid gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">In-progress applications</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Saved drafts that have not been submitted.
+            </p>
+          </div>
+          {archivedDrafts?.length ? (
+            <div className="overflow-hidden rounded-md bg-white shadow-soft">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-mist text-left">
+                  <tr>
+                    <th className="p-4">Applicant</th>
+                    <th className="p-4">Started</th>
+                    <th className="p-4">Last saved</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {archivedDrafts.map((draft) => {
+                    const payload = draft.payload as {
+                      patient?: {
+                        firstName?: string;
+                        lastName?: string;
+                        email?: string;
+                      };
+                    };
+                    const applicant =
+                      [payload.patient?.firstName, payload.patient?.lastName]
+                        .filter(Boolean)
+                        .join(" ") ||
+                      payload.patient?.email ||
+                      "Signed-in applicant";
+                    return (
+                      <tr key={draft.user_id} className="border-t border-slate-200">
+                        <td className="p-4">
+                          <Link
+                            className="font-semibold text-pine"
+                            href={`/admin/drafts/${draft.user_id}`}
+                          >
+                            {applicant}
+                          </Link>
+                        </td>
+                        <td className="p-4">
+                          {new Date(draft.created_at).toLocaleString()}
+                        </td>
+                        <td className="p-4">
+                          {new Date(draft.updated_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="rounded-md bg-white p-5 text-sm text-slate-600 shadow-soft">
+              No in-progress applications have been archived.
+            </p>
+          )}
+        </section>
+
+        <section className="grid gap-4">
+          <h2 className="text-xl font-semibold">Submitted applications</h2>
         {submissions?.length ? (
           <div className="overflow-hidden rounded-md bg-white shadow-soft">
             <table className="w-full border-collapse text-sm">
@@ -94,6 +175,7 @@ export default async function ArchivedApplicationsPage() {
             No applications have been archived.
           </p>
         )}
+        </section>
       </div>
     </main>
   );

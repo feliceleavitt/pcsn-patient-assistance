@@ -19,3 +19,23 @@ export async function getArchivedSubmissionIds() {
   });
   return archivedIds;
 }
+
+export async function getArchivedDraftUserIds() {
+  if (isDemoMode()) return new Set<string>();
+
+  const { data } = await createServiceClient()
+    .from("audit_logs")
+    .select("action,metadata,created_at")
+    .in("action", ["archive_intake_draft", "restore_intake_draft"])
+    .order("created_at", { ascending: true });
+
+  const archivedIds = new Set<string>();
+  data?.forEach((event) => {
+    const metadata = event.metadata as { draftUserId?: unknown } | null;
+    const userId = metadata?.draftUserId;
+    if (typeof userId !== "string") return;
+    if (event.action === "archive_intake_draft") archivedIds.add(userId);
+    if (event.action === "restore_intake_draft") archivedIds.delete(userId);
+  });
+  return archivedIds;
+}
