@@ -92,6 +92,7 @@ const payloadSchema = z.object({
     ),
   }),
   consent: z.object({
+    volunteerAccessConsent: z.literal(true),
     releaseMedicalFinancial: z.literal(true),
     contactPermission: z.literal(true),
     noGuaranteeAcknowledgment: z.literal(true),
@@ -127,6 +128,7 @@ const fieldLabels: Record<string, string> = {
   "household.householdSize": "household size",
   "household.employmentStatus": "patient employment status",
   "consent.releaseMedicalFinancial": "authorization checkbox",
+  "consent.volunteerAccessConsent": "volunteer access and contact consent checkbox",
   "consent.contactPermission": "contact permission checkbox",
   "consent.noGuaranteeAcknowledgment": "no-guarantee checkbox",
   "consent.signature": "electronic signature",

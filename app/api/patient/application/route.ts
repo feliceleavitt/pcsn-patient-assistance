@@ -6,6 +6,7 @@ import { requirePatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const updateSchema = z.object({
+  volunteerAccessConsent: z.literal(true),
   phone: z.string().optional(),
   email: z.string().email().optional(),
   addressLine1: z.string().optional(),

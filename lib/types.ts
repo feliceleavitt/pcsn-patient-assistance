@@ -90,6 +90,7 @@ export type IntakePayload = {
     }>;
   };
   consent: {
+    volunteerAccessConsent: boolean;
     releaseMedicalFinancial: boolean;
     contactPermission: boolean;
     noGuaranteeAcknowledgment: boolean;

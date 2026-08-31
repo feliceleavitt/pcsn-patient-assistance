@@ -44,6 +44,19 @@ export async function PUT(request: Request) {
     );
   }
 
+  const consent = parsed.data.payload.consent;
+  if (
+    !consent ||
+    typeof consent !== "object" ||
+    !("volunteerAccessConsent" in consent) ||
+    consent.volunteerAccessConsent !== true
+  ) {
+    return NextResponse.json(
+      { error: "Consent to volunteer access and contact is required before saving." },
+      { status: 400 },
+    );
+  }
+
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("intake_drafts")

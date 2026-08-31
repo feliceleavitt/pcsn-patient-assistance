@@ -70,15 +70,25 @@ export function PatientApplicationPanel({
   const [message, setMessage] = useState("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [saving, setSaving] = useState(false);
+  const [volunteerAccessConsent, setVolunteerAccessConsent] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
   async function save() {
     setError("");
     setSaved(false);
+    if (!volunteerAccessConsent) {
+      setError(
+        "Please consent to volunteer access and contact before saving your updates.",
+      );
+      return;
+    }
     setSaving(true);
     const formData = new FormData();
-    formData.append("payload", JSON.stringify({ ...contact, message }));
+    formData.append(
+      "payload",
+      JSON.stringify({ ...contact, message, volunteerAccessConsent }),
+    );
     Object.entries(files).forEach(([documentType, selectedFiles]) => {
       selectedFiles.forEach((file) => {
         formData.append(`document:${documentType}`, file);
@@ -100,6 +110,7 @@ export function PatientApplicationPanel({
     }
 
     setSaved(true);
+    setVolunteerAccessConsent(false);
     setMessage("");
     setFiles({});
   }
@@ -277,9 +288,23 @@ export function PatientApplicationPanel({
           value={message}
           onChange={(event) => setMessage(event.target.value)}
         />
+        <label className="flex items-start gap-3 rounded-md border border-pine/30 bg-pine/5 p-4 text-sm leading-6">
+          <input
+            className="mt-1"
+            type="checkbox"
+            checked={volunteerAccessConsent}
+            onChange={(event) => setVolunteerAccessConsent(event.target.checked)}
+          />
+          <span>
+            I consent to Phoenix Cancer Support Network volunteers accessing
+            the application information and updates I have provided up to this
+            point, and I give permission for volunteers to contact me to offer
+            assistance with my application.<span className="ml-1 text-coral">*</span>
+          </span>
+        </label>
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Saving..." : "Save updates"}
+          <Button onClick={save} disabled={saving || !volunteerAccessConsent}>
+            {saving ? "Saving..." : "Save changes"}
           </Button>
           {saved ? <span className="text-sm text-pine">Updates saved.</span> : null}
           {error ? <span className="text-sm text-coral">{error}</span> : null}

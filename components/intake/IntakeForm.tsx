@@ -510,6 +510,7 @@ const initialState: IntakePayload = {
     ],
   },
   consent: {
+    volunteerAccessConsent: false,
     releaseMedicalFinancial: false,
     contactPermission: false,
     noGuaranteeAcknowledgment: false,
@@ -659,6 +660,13 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
   }
 
   async function saveDraft() {
+    if (!form.consent.volunteerAccessConsent) {
+      setSubmitError(
+        "Please consent to volunteer access and contact before saving your application.",
+      );
+      return;
+    }
+
     setSavingDraft(true);
     setSubmitError("");
     setDraftMessage("");
@@ -1213,6 +1221,25 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
         </div>
       ) : null}
 
+      <label className="flex items-start gap-3 rounded-md border border-pine/30 bg-pine/5 p-4 text-sm leading-6">
+        <input
+          className="mt-1"
+          type="checkbox"
+          checked={form.consent.volunteerAccessConsent}
+          onChange={(event) =>
+            updateSection("consent", {
+              volunteerAccessConsent: event.target.checked,
+            })
+          }
+        />
+        <span>
+          I consent to Phoenix Cancer Support Network volunteers accessing the
+          application information I have entered and saved up to this point,
+          and I give permission for volunteers to contact me to offer assistance
+          with my application.<span className="ml-1 text-coral">*</span>
+        </span>
+      </label>
+
       <div className="flex items-center justify-between gap-3">
         <Button variant="secondary" disabled={step === 0} onClick={() => setStep((current) => Math.max(current - 1, 0))}>
           Back
@@ -1233,6 +1260,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
             <Button
               disabled={
                 submitting ||
+                !form.consent.volunteerAccessConsent ||
                 !form.consent.releaseMedicalFinancial ||
                 !form.consent.contactPermission ||
                 !form.consent.noGuaranteeAcknowledgment ||
