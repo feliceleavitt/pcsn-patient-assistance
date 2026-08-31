@@ -186,6 +186,19 @@ const demoSubmissions: DemoSubmission[] = [
   },
 ];
 
+const demoArchivedSubmissionIds = new Set<string>();
+
+export function getDemoArchivedSubmissionIds() {
+  return new Set(demoArchivedSubmissionIds);
+}
+
+export function setDemoSubmissionArchived(id: string, archived: boolean) {
+  if (!getDemoSubmission(id)) return false;
+  if (archived) demoArchivedSubmissionIds.add(id);
+  else demoArchivedSubmissionIds.delete(id);
+  return true;
+}
+
 export function getDemoSubmissions() {
   return demoSubmissions;
 }

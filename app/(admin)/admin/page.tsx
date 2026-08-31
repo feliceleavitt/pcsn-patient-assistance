@@ -4,6 +4,7 @@ import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getDemoSubmissions, isDemoMode } from "@/lib/demo/admin";
+import { getArchivedSubmissionIds } from "@/lib/security/archive";
 
 export default async function AdminDashboardPage() {
   const session = await requireAdminSession();
@@ -38,11 +39,17 @@ export default async function AdminDashboardPage() {
       ]);
   const submissions = submissionsResult.data;
   const drafts = draftsResult.data;
+  const archivedSubmissionIds = await getArchivedSubmissionIds();
+  const activeSubmissions = submissions?.filter(
+    (submission) => !archivedSubmissionIds.has(submission.id),
+  );
   const viewedSubmissionIds = new Set(
     viewsResult.data?.map((view) => view.submission_id) ?? [],
   );
   const newSubmissionCount =
-    submissions?.filter((submission) => !viewedSubmissionIds.has(submission.id))
+    activeSubmissions?.filter(
+      (submission) => !viewedSubmissionIds.has(submission.id),
+    )
       .length ?? 0;
 
   await recordAuditEvent({
@@ -65,7 +72,15 @@ export default async function AdminDashboardPage() {
               order.
             </p>
           </div>
-          <AdminAutoRefresh />
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/admin/archive"
+                className="inline-flex h-10 items-center rounded-md border border-pine/30 bg-white px-4 text-sm font-semibold text-pine"
+              >
+                Archive ({archivedSubmissionIds.size})
+              </Link>
+              <AdminAutoRefresh />
+            </div>
         </div>
 
         <section className="grid gap-3 rounded-md border border-pine/20 bg-white p-5 shadow-soft md:grid-cols-[1fr_auto] md:items-center">
@@ -179,7 +194,7 @@ export default async function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {submissions?.map((submission) => {
+              {activeSubmissions?.map((submission) => {
                 const patient = submission.patients as {
                   first_name: string;
                   last_name: string;

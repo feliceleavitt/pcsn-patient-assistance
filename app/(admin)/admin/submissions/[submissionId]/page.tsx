@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusControls } from "@/components/admin/StatusControls";
+import { ArchiveControls } from "@/components/admin/ArchiveControls";
+import { getArchivedSubmissionIds } from "@/lib/security/archive";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -30,6 +32,7 @@ export default async function SubmissionDetailPage({
       ).data;
 
   if (!submission) notFound();
+  const archivedSubmissionIds = await getArchivedSubmissionIds();
   if (demoMode) {
     markDemoSubmissionViewed(submissionId);
   }
@@ -55,12 +58,18 @@ export default async function SubmissionDetailPage({
               {submission.patients.first_name} {submission.patients.last_name}
             </h1>
           </div>
-          <a
-            className="inline-flex h-11 items-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
-            href={`/api/admin/submissions/${submissionId}/packet`}
-          >
-            Export patient packet PDF
-          </a>
+          <div className="flex flex-wrap gap-3">
+            <ArchiveControls
+              submissionId={submissionId}
+              archived={archivedSubmissionIds.has(submissionId)}
+            />
+            <a
+              className="inline-flex h-11 items-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
+              href={`/api/admin/submissions/${submissionId}/packet`}
+            >
+              Export patient packet PDF
+            </a>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
