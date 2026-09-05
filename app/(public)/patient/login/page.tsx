@@ -44,6 +44,12 @@ export default function PatientLoginPage() {
     router.refresh();
   }
 
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" && !submitting) {
+      void submit();
+    }
+  }
+
   return (
     <main className="grid min-h-screen place-items-center bg-paper p-5">
       <section className="grid w-full max-w-md gap-5 rounded-md bg-white p-6 shadow-soft">
@@ -82,13 +88,23 @@ export default function PatientLoginPage() {
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <TextField
           label="Password"
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
+          onKeyDown={handleKeyDown}
         />
+        {mode === "login" ? (
+          <Link
+            href="/patient/forgot-password"
+            className="w-fit text-sm font-semibold text-pine underline-offset-4 hover:underline"
+          >
+            Forgot your password?
+          </Link>
+        ) : null}
         {mode === "signup" ? (
           <p className="text-sm leading-6 text-slate-600">
             Your account keeps your saved application connected to you.
