@@ -57,6 +57,7 @@ export default async function SubmissionDetailPage({
     : [];
   const insurance = (submission.insurance_details ?? {}) as Record<string, unknown>;
   const mayo = (insurance.mayoFinancialAssistance ?? null) as Record<string, unknown> | null;
+  const ssn = (insurance.socialSecurityNumber ?? null) as Record<string, unknown> | null;
 
   await recordAuditEvent({
     actorId: session.user.id,
@@ -112,6 +113,7 @@ export default async function SubmissionDetailPage({
                 <dt className="text-slate-500">Phone</dt>
                 <dd>{submission.patients.phone}</dd>
               </div>
+              <div><dt className="text-slate-500">Social Security number</dt><dd>{ssn?.last4 ? `•••-••-${String(ssn.last4)}` : "Not provided"}</dd></div>
               <div>
                 <dt className="text-slate-500">Email</dt>
                 <dd>{submission.patients.email}</dd>

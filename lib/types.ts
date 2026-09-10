@@ -43,6 +43,7 @@ export type IntakePayload = {
     firstName: string;
     lastName: string;
     dateOfBirth: string;
+    socialSecurityNumber: string;
     phone: string;
     email: string;
     addressLine1: string;

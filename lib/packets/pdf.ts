@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { decryptBuffer } from "@/lib/security/crypto";
 
 type Patient = {
   first_name: string;
@@ -99,6 +100,11 @@ export async function buildPatientPacketPdf({
   packet?: AssistancePacket | null;
 }) {
   const pdf = await PDFDocument.create();
+  const encryptedSsn = submission.insurance_details?.socialSecurityNumber as { encrypted?: string; iv?: string; tag?: string } | undefined;
+  let socialSecurityNumber: string | undefined;
+  if (encryptedSsn?.encrypted && encryptedSsn.iv && encryptedSsn.tag) {
+    try { socialSecurityNumber = decryptBuffer(Buffer.from(encryptedSsn.encrypted, "base64"), encryptedSsn.iv, encryptedSsn.tag).toString("utf8"); } catch { socialSecurityNumber = undefined; }
+  }
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const pageSize: [number, number] = [612, 792];
@@ -168,6 +174,7 @@ export async function buildPatientPacketPdf({
   heading("Patient");
   writeLine("Name", `${submission.patients.first_name} ${submission.patients.last_name}`);
   writeLine("Date of birth", formatUsDate(submission.patients.date_of_birth));
+  writeLine("Social Security number", socialSecurityNumber);
   writeLine("Phone", submission.patients.phone);
   writeLine("Email", submission.patients.email);
   writeLine(

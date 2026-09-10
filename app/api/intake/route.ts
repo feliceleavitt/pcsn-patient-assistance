@@ -14,6 +14,7 @@ const payloadSchema = z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),
     dateOfBirth: z.string().min(1),
+    socialSecurityNumber: z.string().transform((value) => value.replace(/\D/g, "")).pipe(z.string().regex(/^\d{9}$/)),
     phone: z.string().min(1),
     email: z.string().email(),
     addressLine1: z.string().min(1),
@@ -119,6 +120,7 @@ const fieldLabels: Record<string, string> = {
   "patient.firstName": "patient first name",
   "patient.lastName": "patient last name",
   "patient.dateOfBirth": "patient date of birth",
+  "patient.socialSecurityNumber": "patient Social Security number",
   "patient.phone": "patient phone number",
   "patient.email": "patient email",
   "patient.addressLine1": "patient address",
@@ -199,6 +201,7 @@ export async function POST(request: Request) {
   }
 
   const payload = parsed.data;
+  const encryptedSsn = encryptBuffer(Buffer.from(payload.patient.socialSecurityNumber, "utf8"));
   const supabase = createServiceClient();
   const { data: patient, error: patientError } = await supabase
     .from("patients")
@@ -247,7 +250,7 @@ export async function POST(request: Request) {
       guarantor_number: payload.hospital.guarantorNumber || null,
       treatment_facilities: payload.hospital.treatmentFacilities,
       has_insurance: payload.insurance.hasInsurance,
-      insurance_details: { ...payload.insurance, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || payload.patient.firstName, applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || payload.patient.lastName, responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || payload.patient.dateOfBirth, location: "Mayo Clinic Arizona" } : undefined },
+      insurance_details: { ...payload.insurance, socialSecurityNumber: { encrypted: encryptedSsn.encrypted.toString("base64"), iv: encryptedSsn.iv, tag: encryptedSsn.tag, last4: payload.patient.socialSecurityNumber.slice(-4) }, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || payload.patient.firstName, applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || payload.patient.lastName, responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || payload.patient.dateOfBirth, location: "Mayo Clinic Arizona" } : undefined },
       monthly_income: payload.household.monthlyIncome,
       annual_income: payload.household.annualIncome,
       household_size: payload.household.householdSize,

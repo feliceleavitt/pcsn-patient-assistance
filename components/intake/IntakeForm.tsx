@@ -440,6 +440,7 @@ const initialState: IntakePayload = {
     firstName: "",
     lastName: "",
     dateOfBirth: "",
+    socialSecurityNumber: "",
     phone: "",
     email: "",
     addressLine1: "",
@@ -541,7 +542,16 @@ type IntakeFormProps = {
 export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<IntakePayload>(initialDraft ?? initialState);
+  const [form, setForm] = useState<IntakePayload>(() => initialDraft ? {
+    ...initialState, ...initialDraft,
+    patient: { ...initialState.patient, ...initialDraft.patient, socialSecurityNumber: "" },
+    diagnosis: { ...initialState.diagnosis, ...initialDraft.diagnosis },
+    provider: { ...initialState.provider, ...initialDraft.provider },
+    hospital: { ...initialState.hospital, ...initialDraft.hospital },
+    insurance: { ...initialState.insurance, ...initialDraft.insurance },
+    household: { ...initialState.household, ...initialDraft.household },
+    consent: { ...initialState.consent, ...initialDraft.consent },
+  } : initialState);
   const [files, setFiles] = useState<Partial<Record<DocumentType, File[]>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -665,6 +675,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
       [1, hasText(form.patient.firstName), "Patient first name is required."],
       [1, hasText(form.patient.lastName), "Patient last name is required."],
       [1, hasText(form.patient.dateOfBirth), "Patient date of birth is required."],
+      [1, /^\d{9}$/.test(form.patient.socialSecurityNumber.replace(/\D/g, "")), "A valid 9-digit Social Security number is required."],
       [1, hasText(form.patient.phone), "Patient phone number is required."],
       [1, hasText(form.patient.email), "Patient email is required."],
       [1, hasText(form.patient.addressLine1), "Patient address is required."],
@@ -886,6 +897,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
           <TextField required label="First name" value={form.patient.firstName} onChange={(e) => updateSection("patient", { firstName: e.target.value })} />
           <TextField required label="Last name" value={form.patient.lastName} onChange={(e) => updateSection("patient", { lastName: e.target.value })} />
           <TextField required label="Date of birth" type="date" value={form.patient.dateOfBirth} onChange={(e) => updateSection("patient", { dateOfBirth: e.target.value })} />
+          <div><TextField required label="Social Security number" type="password" inputMode="numeric" autoComplete="off" maxLength={11} placeholder="XXX-XX-XXXX" value={form.patient.socialSecurityNumber} onChange={(e) => updateSection("patient", { socialSecurityNumber: e.target.value.replace(/[^\d-]/g, "") })} /><p className="mt-1 text-xs leading-5 text-slate-500">Required by many assistance programs. It is encrypted when submitted and is not included in saved drafts.</p></div>
           <TextField required label="Phone" value={form.patient.phone} onChange={(e) => updateSection("patient", { phone: e.target.value })} />
           <TextField required label="Email" type="email" value={form.patient.email} onChange={(e) => updateSection("patient", { email: e.target.value })} />
           <TextField required label="Address line 1" value={form.patient.addressLine1} onChange={(e) => updateSection("patient", { addressLine1: e.target.value })} />

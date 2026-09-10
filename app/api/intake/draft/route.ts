@@ -58,12 +58,16 @@ export async function PUT(request: Request) {
   }
 
   const supabase = createServiceClient();
+  const safePayload = structuredClone(parsed.data.payload);
+  if (safePayload.patient && typeof safePayload.patient === "object") {
+    delete (safePayload.patient as Record<string, unknown>).socialSecurityNumber;
+  }
   const { data, error } = await supabase
     .from("intake_drafts")
     .upsert(
       {
         user_id: patientSession.user.id,
-        payload: parsed.data.payload,
+        payload: safePayload,
       },
       { onConflict: "user_id" },
     )
