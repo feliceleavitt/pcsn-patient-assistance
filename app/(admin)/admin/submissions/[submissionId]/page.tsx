@@ -206,9 +206,9 @@ export default async function SubmissionDetailPage({
               )}
             </div>
             <div className="grid gap-3">
-              <h3 className="font-semibold">Uploaded documents</h3>
-              {submission.documents.length ? (
-                submission.documents.map((document: { id: string; original_filename: string; document_type: string }) => (
+              <h3 className="font-semibold">Patient packet documents</h3>
+              {submission.documents.some((document: { document_type: string }) => !document.document_type.startsWith("internal_record:")) ? (
+                submission.documents.filter((document: { document_type: string }) => !document.document_type.startsWith("internal_record:")).map((document: { id: string; original_filename: string; document_type: string }) => (
                   <a
                     key={document.id}
                     className="text-sm text-pine"
@@ -218,9 +218,10 @@ export default async function SubmissionDetailPage({
                   </a>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">No documents uploaded.</p>
+                <p className="text-sm text-slate-500">No patient packet documents uploaded.</p>
               )}
             </div>
+            <div className="grid gap-3 rounded-md border border-slate-200 bg-paper p-4"><div><h3 className="font-semibold">Internal volunteer records</h3><p className="mt-1 text-sm text-slate-600">These files and their related comments are excluded from patient-facing views and exported packet PDFs.</p></div>{submission.documents.some((document: { document_type: string }) => document.document_type.startsWith("internal_record:")) ? submission.documents.filter((document: { document_type: string }) => document.document_type.startsWith("internal_record:")).map((document: { id: string; original_filename: string; document_type: string }) => <a key={document.id} className="text-sm font-medium text-pine" href={`/api/admin/submissions/${submissionId}/documents/${document.id}/download`}>{document.document_type.replace("internal_record:", "").replaceAll("_", " ")}: {document.original_filename}</a>) : <p className="text-sm text-slate-500">No internal records uploaded.</p>}</div>
             <div className="grid gap-3">
               <h3 className="font-semibold">Enrollment form worksheet</h3>
               <p className="text-sm leading-6 text-slate-600">

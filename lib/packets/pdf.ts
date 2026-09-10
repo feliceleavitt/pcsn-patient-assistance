@@ -273,10 +273,11 @@ export async function buildPatientPacketPdf({
   }
 
   heading("Documents");
+  const packetDocuments = submission.documents?.filter((document) => !document.document_type.startsWith("internal_record:")) ?? [];
   writeLine("Current status", submission.status?.replaceAll("_", " "));
   writeLine("Missing documents", submission.missing_documents);
-  writeLine("Uploaded documents", submission.documents?.length ?? 0);
-  submission.documents?.forEach((document) => {
+  writeLine("Uploaded documents", packetDocuments.length);
+  packetDocuments.forEach((document) => {
     writeLine(document.document_type.replaceAll("_", " "), document.original_filename);
   });
 

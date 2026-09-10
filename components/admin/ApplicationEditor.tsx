@@ -18,6 +18,8 @@ type Props = {
 export function ApplicationEditor({ submissionId, initial }: Props) {
   const [values, setValues] = useState(initial);
   const [files, setFiles] = useState<File[]>([]);
+  const [internalLabel, setInternalLabel] = useState("approval_letter");
+  const [internalComment, setInternalComment] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const update = (key: keyof typeof values, value: string) => setValues((current) => ({ ...current, [key]: value }));
@@ -27,6 +29,8 @@ export function ApplicationEditor({ submissionId, initial }: Props) {
     const body = new FormData();
     body.append("payload", JSON.stringify(values));
     files.forEach((file) => body.append("documents", file));
+    body.append("internalDocumentLabel", internalLabel);
+    body.append("internalDocumentComment", internalComment);
     const response = await fetch(`/api/admin/submissions/${submissionId}`, { method: "PATCH", body });
     const result = (await response.json().catch(() => null)) as { error?: string } | null;
     setSaving(false);
@@ -58,7 +62,7 @@ export function ApplicationEditor({ submissionId, initial }: Props) {
       <TextField label="Policy holder" value={values.policyHolder} onChange={(e) => update("policyHolder", e.target.value)} />
       <TextField label="Monthly household income" value={values.monthlyIncome} onChange={(e) => update("monthlyIncome", e.target.value)} />
       <TextField label="Annual household income" value={values.annualIncome} onChange={(e) => update("annualIncome", e.target.value)} />
-      <label className="grid gap-2 text-sm md:col-span-2"><span className="font-medium">Upload documents for the patient</span><input type="file" multiple className="rounded-md border border-slate-300 p-3" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} /></label>
+      <section className="grid gap-4 rounded-md border border-slate-300 bg-paper p-4 md:col-span-2"><div><h3 className="font-semibold">Internal record-keeping documents</h3><p className="mt-1 text-sm text-slate-600">Approval letters, emails, completed applications, and similar files uploaded here are visible only to volunteers and are never added to the exported patient packet.</p></div><label className="grid gap-2 text-sm"><span className="font-medium">Document label</span><select className="h-11 rounded-md border border-slate-300 bg-white px-3" value={internalLabel} onChange={(e) => setInternalLabel(e.target.value)}><option value="approval_letter">Approval letter</option><option value="denial_letter">Denial letter</option><option value="email_correspondence">Email or correspondence</option><option value="completed_application">Completed application</option><option value="program_document">Program document</option><option value="internal_note_attachment">Other internal record</option></select></label><TextAreaField label="Comment or description" placeholder="Add context, dates, or follow-up details for volunteers." value={internalComment} onChange={(e) => setInternalComment(e.target.value)} /><label className="grid gap-2 text-sm"><span className="font-medium">Choose internal files</span><input type="file" multiple className="rounded-md border border-slate-300 bg-white p-3" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} /></label></section>
       {message ? <p className="text-sm text-pine md:col-span-2">{message}</p> : null}
       <div className="md:col-span-2"><Button onClick={save} disabled={saving}>{saving ? "Saving..." : "Save application changes"}</Button></div>
     </div>

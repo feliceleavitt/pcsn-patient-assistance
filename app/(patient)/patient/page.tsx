@@ -43,7 +43,7 @@ export default async function PatientPortalPage() {
               createdAt: application.created_at,
               missingDocuments: application.missing_documents,
               patient: application.patients,
-              documents: application.documents.map(
+              documents: application.documents.filter((document: { document_type: string }) => !document.document_type.startsWith("internal_record:")).map(
                 (document: {
                   id: string;
                   original_filename: string;

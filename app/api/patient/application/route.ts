@@ -44,7 +44,7 @@ export async function GET() {
       assistanceType: submission.assistance_type,
       missingDocuments: submission.missing_documents,
       patient: submission.patients,
-      documents: submission.documents.map(
+      documents: submission.documents.filter((document: { document_type: string }) => !document.document_type.startsWith("internal_record:")).map(
         (document: {
           id: string;
           original_filename: string;
