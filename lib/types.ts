@@ -34,10 +34,14 @@ export type IntakePayload = {
   };
   diagnosis: {
     cancerType: string;
+    cancerStage?: string;
     diagnosisDate: string;
     treatmentPlan: string;
     treatmentStartDate?: string;
     medicationRequested?: string;
+    treatments?: Array<{ name: string; startDate?: string }>;
+    medications?: string[];
+    pharmacyName?: string;
   };
   provider: {
     clinicName: string;
@@ -63,21 +67,26 @@ export type IntakePayload = {
     medicalPolicyId?: string;
     medicalGroupId?: string;
     medicalMemberId?: string;
+    medicalPcn?: string;
+    medicalPolicyHolder?: string;
     hasPharmacyInsurance: boolean;
     pharmacyCarrier?: string;
     pharmacyPolicyId?: string;
     pharmacyGroupId?: string;
     pharmacyMemberId?: string;
+    pharmacyPcn?: string;
+    pharmacyPolicyHolder?: string;
     hasMedicare: boolean;
     hasMedicaid: boolean;
     priorAuthorizationStatus?: string;
     appealStatus?: string;
     coverageDenied: "yes" | "no" | "not_sure";
+    denialDetails?: string;
     eobAvailable: boolean;
   };
   household: {
-    monthlyIncome: number;
-    annualIncome: number;
+    monthlyIncome: number | string;
+    annualIncome: number | string;
     householdSize: number;
     employmentStatus: string;
     members: Array<{

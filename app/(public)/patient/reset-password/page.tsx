@@ -20,13 +20,12 @@ export default function ResetPatientPasswordPage() {
   useEffect(() => {
     const client = createBrowserClient();
     setSupabase(client);
-    void client.auth.getSession().then(({ data }) => {
-      setReady(Boolean(data.session));
+    const tokenHash = new URLSearchParams(window.location.search).get("token_hash");
+    if (!tokenHash) return;
+    void client.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" }).then(({ error: verifyError }) => {
+      setReady(!verifyError);
+      if (verifyError) setError("This reset link is invalid or expired. Request a new link.");
     });
-    const { data } = client.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || session) setReady(true);
-    });
-    return () => data.subscription.unsubscribe();
   }, []);
 
   async function submit() {
@@ -96,7 +95,7 @@ export default function ResetPatientPasswordPage() {
         ) : (
           <div className="grid gap-4">
             <p className="text-sm leading-6 text-slate-600">
-              This reset link is invalid or expired.
+              {error || "Checking your secure reset link..."}
             </p>
             <Link href="/patient/forgot-password" className="font-semibold text-pine">
               Request a new reset link

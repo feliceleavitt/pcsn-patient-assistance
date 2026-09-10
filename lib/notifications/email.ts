@@ -56,6 +56,21 @@ async function sendEmail({ to, subject, text }: EmailMessage) {
   return false;
 }
 
+export async function sendPatientPasswordReset(patientEmail: string, resetUrl: string) {
+  return sendEmail({
+    to: patientEmail,
+    subject: "Reset your PCSN patient portal password",
+    text: [
+      "A password reset was requested for your Phoenix Cancer Support Network patient portal account.",
+      "",
+      "Use this secure one-time link to choose a new password:",
+      resetUrl,
+      "",
+      "If you did not request this, you can ignore this email.",
+    ].join("\n"),
+  });
+}
+
 export async function sendNewSubmissionNotification() {
   const adminUrl = process.env.NEXT_PUBLIC_APP_URL
     ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/admin`

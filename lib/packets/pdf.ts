@@ -40,6 +40,8 @@ type PacketSubmission = {
   employment_status: string;
   missing_documents?: string[];
   status?: string;
+  signature?: string | null;
+  signed_at?: string | null;
   patients: Patient;
   documents?: Array<{ document_type: string; original_filename: string }>;
   household_members?: Array<{
@@ -65,6 +67,21 @@ type AssistancePacket = {
 
 function dollars(value: number | string) {
   return `$${Number(value).toLocaleString()}`;
+}
+
+function formatUsDate(value?: string | null) {
+  if (!value) return "N/A";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return month && day && year ? `${month}-${day}-${year}` : value;
+}
+
+function formatApproximateDate(value: unknown) {
+  const text = String(value ?? "");
+  if (/^\d{4}-\d{2}$/.test(text)) {
+    const [year, month] = text.split("-");
+    return `${month}-${year}`;
+  }
+  return formatUsDate(text);
 }
 
 function normalize(value: unknown) {
@@ -150,7 +167,7 @@ export async function buildPatientPacketPdf({
 
   heading("Patient");
   writeLine("Name", `${submission.patients.first_name} ${submission.patients.last_name}`);
-  writeLine("Date of birth", submission.patients.date_of_birth);
+  writeLine("Date of birth", formatUsDate(submission.patients.date_of_birth));
   writeLine("Phone", submission.patients.phone);
   writeLine("Email", submission.patients.email);
   writeLine(
@@ -169,13 +186,13 @@ export async function buildPatientPacketPdf({
   heading("Treatment");
   writeLine("Assistance needed", submission.assistance_type.replaceAll("_", " "));
   writeLine("Cancer type", submission.cancer_type);
-  writeLine("Diagnosis date", submission.diagnosis_date);
+  writeLine("Cancer stage", submission.insurance_details?.cancerStage);
+  writeLine("Approximate diagnosis date", formatApproximateDate(submission.insurance_details?.diagnosisApproximate ?? submission.diagnosis_date));
   writeLine("Treatment plan", submission.treatment_plan);
   writeLine("Treatment start date", submission.treatment_start_date);
-  writeLine("Medication", submission.medication_requested);
+  writeLine("Medication list", submission.medication_requested);
+  writeLine("Preferred pharmacy", submission.insurance_details?.pharmacyName);
   writeLine("Arizona care sites", submission.treatment_facilities);
-  writeLine("Hospital account number", submission.hospital_account_number);
-  writeLine("Person responsible for bill number", submission.guarantor_number);
 
   heading("Prescriber / provider");
   writeLine("Clinic", submission.clinic_name);
@@ -199,6 +216,9 @@ export async function buildPatientPacketPdf({
   heading("Insurance and household");
   writeLine("Health insurance company", submission.insurance_details?.medicalCarrier);
   writeLine("Health insurance member ID", submission.insurance_details?.medicalMemberId);
+  writeLine("Health insurance PCN", submission.insurance_details?.medicalPcn);
+  writeLine("Health insurance group", submission.insurance_details?.medicalGroupId);
+  writeLine("Health insurance policy holder", submission.insurance_details?.medicalPolicyHolder);
   writeLine("Prescription insurance company", submission.insurance_details?.pharmacyCarrier);
   writeLine("Prescription insurance member ID", submission.insurance_details?.pharmacyMemberId);
   writeLine("Medicare", submission.insurance_details?.hasMedicare);
@@ -235,11 +255,13 @@ export async function buildPatientPacketPdf({
     "PCSN authorization",
     "Patient authorized release of medical and financial information and permission for PCSN to contact providers, hospitals, insurers, manufacturers, and assistance foundations during intake.",
   );
-  if (packet?.patient_signature) {
-    writeLine("Electronic signature", packet.patient_signature);
+  const electronicSignature = packet?.patient_signature || submission.signature;
+  const electronicSignedAt = packet?.patient_signed_at || submission.signed_at;
+  if (electronicSignature) {
+    writeLine("Electronic signature", electronicSignature);
     writeLine(
       "Signed at",
-      packet.patient_signed_at ? new Date(packet.patient_signed_at).toLocaleString() : undefined,
+      electronicSignedAt ? new Date(electronicSignedAt).toLocaleString("en-US") : undefined,
     );
   } else {
     writeLine("Electronic signature", "Not signed yet");

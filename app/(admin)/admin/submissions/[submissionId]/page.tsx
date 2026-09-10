@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusControls } from "@/components/admin/StatusControls";
 import { ArchiveControls } from "@/components/admin/ArchiveControls";
+import { ApplicationEditor } from "@/components/admin/ApplicationEditor";
 import { getArchivedSubmissionIds } from "@/lib/security/archive";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
@@ -11,6 +12,21 @@ import {
   isDemoMode,
   markDemoSubmissionViewed,
 } from "@/lib/demo/admin";
+
+function formatUsDate(value?: string | null) {
+  if (!value) return "N/A";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  return month && day && year ? `${month}-${day}-${year}` : value;
+}
+
+function formatApproximateDate(value: unknown) {
+  const text = String(value ?? "");
+  if (/^\d{4}-\d{2}$/.test(text)) {
+    const [year, month] = text.split("-");
+    return `${month}-${year}`;
+  }
+  return formatUsDate(text);
+}
 
 export default async function SubmissionDetailPage({
   params,
@@ -39,6 +55,7 @@ export default async function SubmissionDetailPage({
   const treatmentFacilities = Array.isArray(submission.treatment_facilities)
     ? (submission.treatment_facilities as string[])
     : [];
+  const insurance = (submission.insurance_details ?? {}) as Record<string, unknown>;
 
   await recordAuditEvent({
     actorId: session.user.id,
@@ -72,13 +89,23 @@ export default async function SubmissionDetailPage({
           </div>
         </div>
 
+        <ApplicationEditor submissionId={submissionId} initial={{
+          firstName: submission.patients.first_name, lastName: submission.patients.last_name,
+          dateOfBirth: submission.patients.date_of_birth, phone: submission.patients.phone, email: submission.patients.email,
+          cancerType: submission.cancer_type, cancerStage: String(insurance.cancerStage ?? ""), diagnosisDate: submission.diagnosis_date,
+          treatmentPlan: submission.treatment_plan ?? "", medications: submission.medication_requested ?? "", pharmacyName: String(insurance.pharmacyName ?? ""),
+          providerName: submission.provider_name ?? "", providerNpi: submission.provider_npi ?? "", insuranceCompany: String(insurance.medicalCarrier ?? ""),
+          memberId: String(insurance.medicalMemberId ?? ""), pcn: String(insurance.medicalPcn ?? ""), groupId: String(insurance.medicalGroupId ?? ""), policyHolder: String(insurance.medicalPolicyHolder ?? ""),
+          monthlyIncome: String(submission.monthly_income ?? ""), annualIncome: String(submission.annual_income ?? ""),
+        }} />
+
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="grid gap-5 rounded-md bg-white p-5 shadow-soft">
             <h2 className="text-lg font-semibold">Patient details</h2>
             <dl className="grid gap-4 text-sm md:grid-cols-2">
               <div>
                 <dt className="text-slate-500">Date of birth</dt>
-                <dd>{submission.patients.date_of_birth}</dd>
+                <dd>{formatUsDate(submission.patients.date_of_birth)}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">Phone</dt>
@@ -92,6 +119,9 @@ export default async function SubmissionDetailPage({
                 <dt className="text-slate-500">Cancer type</dt>
                 <dd>{submission.cancer_type}</dd>
               </div>
+              <div><dt className="text-slate-500">Cancer stage</dt><dd>{String(insurance.cancerStage ?? "Not provided")}</dd></div>
+              <div><dt className="text-slate-500">Approximate diagnosis date</dt><dd>{formatApproximateDate(insurance.diagnosisApproximate ?? submission.diagnosis_date)}</dd></div>
+              <div className="md:col-span-2"><dt className="text-slate-500">Treatment details</dt><dd className="whitespace-pre-wrap">{submission.treatment_plan || "N/A"}</dd></div>
               <div>
                 <dt className="text-slate-500">Assistance needed</dt>
                 <dd>{submission.assistance_type.replaceAll("_", " ")}</dd>
@@ -100,6 +130,11 @@ export default async function SubmissionDetailPage({
                 <dt className="text-slate-500">Medication requested</dt>
                 <dd>{submission.medication_requested || "N/A"}</dd>
               </div>
+              <div><dt className="text-slate-500">Preferred pharmacy</dt><dd>{String(insurance.pharmacyName ?? "N/A")}</dd></div>
+              <div><dt className="text-slate-500">Insurance company</dt><dd>{String(insurance.medicalCarrier ?? "N/A")}</dd></div>
+              <div><dt className="text-slate-500">Member ID / PCN / Group</dt><dd>{[insurance.medicalMemberId, insurance.medicalPcn, insurance.medicalGroupId].filter(Boolean).map(String).join(" / ") || "N/A"}</dd></div>
+              <div><dt className="text-slate-500">Policy holder</dt><dd>{String(insurance.medicalPolicyHolder ?? "N/A")}</dd></div>
+              <div className="md:col-span-2"><dt className="text-slate-500">Insurance denial details</dt><dd>{String(insurance.denialDetails ?? "None provided")}</dd></div>
               <div>
                 <dt className="text-slate-500">Clinic</dt>
                 <dd>{submission.clinic_name}</dd>
@@ -107,10 +142,6 @@ export default async function SubmissionDetailPage({
               <div>
                 <dt className="text-slate-500">Provider NPI</dt>
                 <dd>{submission.provider_npi}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Hospital account</dt>
-                <dd>{submission.hospital_account_number || "N/A"}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">Arizona care sites</dt>
@@ -186,7 +217,7 @@ export default async function SubmissionDetailPage({
                 </div>
                 <div>
                   <dt className="text-slate-500">Date of birth</dt>
-                  <dd>{submission.patients.date_of_birth}</dd>
+                  <dd>{formatUsDate(submission.patients.date_of_birth)}</dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Phone</dt>
@@ -230,10 +261,6 @@ export default async function SubmissionDetailPage({
                     , {submission.provider_city}, {submission.provider_state}{" "}
                     {submission.provider_postal_code}
                   </dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500">Hospital account number</dt>
-                  <dd>{submission.hospital_account_number || "N/A"}</dd>
                 </div>
                 <div>
                   <dt className="text-slate-500">Arizona care sites</dt>

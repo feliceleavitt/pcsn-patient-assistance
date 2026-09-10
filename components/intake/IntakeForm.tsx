@@ -408,6 +408,7 @@ const employmentOptions = [
   "Unemployed",
   "Retired",
   "Disabled",
+  "Receiving SSDI (Social Security Disability Insurance)",
   "Student",
   "Homemaker/caregiver",
   "Other",
@@ -452,10 +453,14 @@ const initialState: IntakePayload = {
   },
   diagnosis: {
     cancerType: "",
+    cancerStage: "",
     diagnosisDate: "",
     treatmentPlan: "",
     treatmentStartDate: "",
     medicationRequested: "",
+    treatments: [{ name: "", startDate: "" }],
+    medications: [""],
+    pharmacyName: "",
   },
   provider: {
     clinicName: "",
@@ -491,6 +496,7 @@ const initialState: IntakePayload = {
     priorAuthorizationStatus: "",
     appealStatus: "",
     coverageDenied: "not_sure",
+    denialDetails: "",
     eobAvailable: false,
   },
   household: {
@@ -625,6 +631,18 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
     });
   }
 
+  function updateTreatment(index: number, value: { name?: string; startDate?: string }) {
+    const treatments = [...(form.diagnosis.treatments ?? [])];
+    treatments[index] = { ...treatments[index], ...value };
+    updateSection("diagnosis", { treatments });
+  }
+
+  function updateMedication(index: number, value: string) {
+    const medications = [...(form.diagnosis.medications ?? [])];
+    medications[index] = value;
+    updateSection("diagnosis", { medications });
+  }
+
   function hasText(value: string | undefined) {
     return Boolean(value?.trim());
   }
@@ -643,11 +661,10 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
       [1, hasText(form.patient.employmentStatus), "Patient employment status is required."],
       [3, hasText(form.diagnosis.cancerType), "Cancer type is required."],
       [3, hasText(form.diagnosis.diagnosisDate), "Diagnosis date is required."],
-      [3, hasText(form.diagnosis.treatmentPlan), "Treatment plan is required."],
-      [3, !isManufacturer || hasText(form.diagnosis.medicationRequested), "Medication is required for medication assistance."],
+      [3, (form.diagnosis.treatments ?? []).some((item) => hasText(item.name)), "At least one treatment is required."],
+      [3, !isManufacturer || (form.diagnosis.medications ?? []).some(hasText), "At least one medication is required for medication assistance."],
       [4, hasText(form.provider.clinicName), "Clinic name is required."],
       [4, hasText(form.provider.providerName), "Provider name is required."],
-      [4, hasText(form.provider.npi), "Provider NPI is required."],
       [4, hasText(form.provider.phone), "Provider phone number is required."],
       [4, hasText(form.provider.addressLine1), "Provider address is required."],
       [4, hasText(form.provider.city), "Provider city is required."],
@@ -927,20 +944,10 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
       {step === 3 ? (
         <div className="grid gap-4 md:grid-cols-2">
           <AutocompleteField required label="Cancer type" value={form.diagnosis.cancerType} options={cancerTypes} onChange={(value) => updateSection("diagnosis", { cancerType: value })} />
-          <TextField required label="Diagnosis date" type="date" value={form.diagnosis.diagnosisDate} onChange={(e) => updateSection("diagnosis", { diagnosisDate: e.target.value })} />
-          <TextField label="Treatment start date" type="date" value={form.diagnosis.treatmentStartDate} onChange={(e) => updateSection("diagnosis", { treatmentStartDate: e.target.value })} />
-          {isManufacturer ? (
-            <AutocompleteField required label="Medication" value={form.diagnosis.medicationRequested ?? ""} options={medications} onChange={(value) => updateSection("diagnosis", { medicationRequested: value })} />
-          ) : null}
-          <div className="md:col-span-2">
-            <TextAreaField required label="Treatment plan" value={form.diagnosis.treatmentPlan} onChange={(e) => updateSection("diagnosis", { treatmentPlan: e.target.value })} />
-          </div>
-          {isHospital ? (
-            <>
-              <TextField label="Hospital account number" value={form.hospital.accountNumber} onChange={(e) => updateSection("hospital", { accountNumber: e.target.value })} />
-              <TextField label="Person responsible for the bill number" value={form.hospital.guarantorNumber} onChange={(e) => updateSection("hospital", { guarantorNumber: e.target.value })} />
-            </>
-          ) : null}
+          <label className="grid gap-2 text-sm"><span className="font-medium text-ink">Cancer stage</span><select className="h-11 rounded-md border border-slate-300 bg-white px-3" value={form.diagnosis.cancerStage ?? ""} onChange={(e) => updateSection("diagnosis", { cancerStage: e.target.value })}><option value="">Select if known</option>{["Stage 0","Stage I","Stage II","Stage III","Stage IV","Recurrent","Not sure"].map((value) => <option key={value}>{value}</option>)}</select></label>
+          <TextField required label="Approximate diagnosis month" type="month" value={form.diagnosis.diagnosisDate} onChange={(e) => updateSection("diagnosis", { diagnosisDate: e.target.value })} />
+          <div className="grid gap-3 md:col-span-2"><h3 className="font-semibold">Treatments</h3><p className="text-sm text-slate-600">Add each treatment separately. The month can be approximate.</p>{(form.diagnosis.treatments ?? []).map((treatment, index) => <div key={index} className="grid gap-3 rounded-md border border-slate-200 p-4 md:grid-cols-2"><TextField label={`Treatment ${index + 1}`} placeholder="Example: chemotherapy, radiation, surgery" value={treatment.name} onChange={(e) => updateTreatment(index, { name: e.target.value })} /><TextField label="Approximate start month" type="month" value={treatment.startDate ?? ""} onChange={(e) => updateTreatment(index, { startDate: e.target.value })} /></div>)}<Button variant="secondary" onClick={() => updateSection("diagnosis", { treatments: [...(form.diagnosis.treatments ?? []), { name: "", startDate: "" }] })}><Plus size={16} />Add treatment</Button></div>
+          {isManufacturer ? <div className="grid gap-3 md:col-span-2"><h3 className="font-semibold">Medication list</h3><p className="text-sm text-slate-600">List all cancer-related medications, including lower-cost medications. You may also upload photos of a medication list in Documents.</p>{(form.diagnosis.medications ?? []).map((medication, index) => <AutocompleteField key={index} label={`Medication ${index + 1}`} value={medication} options={medications} onChange={(value) => updateMedication(index, value)} />)}<Button variant="secondary" onClick={() => updateSection("diagnosis", { medications: [...(form.diagnosis.medications ?? []), ""] })}><Plus size={16} />Add medication</Button><TextField label="Preferred pharmacy" placeholder="Pharmacy name and location" value={form.diagnosis.pharmacyName ?? ""} onChange={(e) => updateSection("diagnosis", { pharmacyName: e.target.value })} /></div> : null}
           <div className="grid gap-3 md:col-span-2">
             <div>
               <h3 className="font-semibold">Arizona hospitals or cancer centers</h3>
@@ -975,7 +982,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
         <div className="grid gap-4 md:grid-cols-2">
           <TextField required label="Clinic name" value={form.provider.clinicName} onChange={(e) => updateSection("provider", { clinicName: e.target.value })} />
           <TextField required label="Prescriber/provider name" value={form.provider.providerName} onChange={(e) => updateSection("provider", { providerName: e.target.value })} />
-          <TextField required label="NPI" value={form.provider.npi} onChange={(e) => updateSection("provider", { npi: e.target.value })} />
+          <TextField label="NPI (if known)" value={form.provider.npi} onChange={(e) => updateSection("provider", { npi: e.target.value })} />
           <TextField required label="Phone" value={form.provider.phone} onChange={(e) => updateSection("provider", { phone: e.target.value })} />
           <TextField label="Fax" value={form.provider.fax} onChange={(e) => updateSection("provider", { fax: e.target.value })} />
           <TextField required label="Address line 1" value={form.provider.addressLine1} onChange={(e) => updateSection("provider", { addressLine1: e.target.value })} />
@@ -1005,18 +1012,22 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
           </div>
           {form.insurance.hasMedicalInsurance ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField label="Health insurance company" value={form.insurance.medicalCarrier} onChange={(e) => updateSection("insurance", { medicalCarrier: e.target.value })} />
+              <TextField required label="Health insurance company" value={form.insurance.medicalCarrier} onChange={(e) => updateSection("insurance", { medicalCarrier: e.target.value })} />
               <TextField label="Health insurance policy ID" value={form.insurance.medicalPolicyId} onChange={(e) => updateSection("insurance", { medicalPolicyId: e.target.value })} />
-              <TextField label="Health insurance group ID" value={form.insurance.medicalGroupId} onChange={(e) => updateSection("insurance", { medicalGroupId: e.target.value })} />
-              <TextField label="Health insurance member ID" value={form.insurance.medicalMemberId} onChange={(e) => updateSection("insurance", { medicalMemberId: e.target.value })} />
+              <TextField required label="Health insurance group ID" value={form.insurance.medicalGroupId} onChange={(e) => updateSection("insurance", { medicalGroupId: e.target.value })} />
+              <TextField required label="Health insurance member ID" value={form.insurance.medicalMemberId} onChange={(e) => updateSection("insurance", { medicalMemberId: e.target.value })} />
+              <TextField label="Health insurance PCN" value={form.insurance.medicalPcn ?? ""} onChange={(e) => updateSection("insurance", { medicalPcn: e.target.value })} />
+              <TextField required label="Policy holder name" value={form.insurance.medicalPolicyHolder ?? ""} onChange={(e) => updateSection("insurance", { medicalPolicyHolder: e.target.value })} />
             </div>
           ) : null}
           {form.insurance.hasPharmacyInsurance ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField label="Prescription insurance company" value={form.insurance.pharmacyCarrier} onChange={(e) => updateSection("insurance", { pharmacyCarrier: e.target.value })} />
+              <TextField required label="Prescription insurance company" value={form.insurance.pharmacyCarrier} onChange={(e) => updateSection("insurance", { pharmacyCarrier: e.target.value })} />
               <TextField label="Prescription insurance policy ID" value={form.insurance.pharmacyPolicyId} onChange={(e) => updateSection("insurance", { pharmacyPolicyId: e.target.value })} />
-              <TextField label="Prescription insurance group ID" value={form.insurance.pharmacyGroupId} onChange={(e) => updateSection("insurance", { pharmacyGroupId: e.target.value })} />
-              <TextField label="Prescription insurance member ID" value={form.insurance.pharmacyMemberId} onChange={(e) => updateSection("insurance", { pharmacyMemberId: e.target.value })} />
+              <TextField required label="Prescription insurance group ID" value={form.insurance.pharmacyGroupId} onChange={(e) => updateSection("insurance", { pharmacyGroupId: e.target.value })} />
+              <TextField required label="Prescription insurance member ID" value={form.insurance.pharmacyMemberId} onChange={(e) => updateSection("insurance", { pharmacyMemberId: e.target.value })} />
+              <TextField required label="Prescription insurance PCN" value={form.insurance.pharmacyPcn ?? ""} onChange={(e) => updateSection("insurance", { pharmacyPcn: e.target.value })} />
+              <TextField required label="Policy holder name" value={form.insurance.pharmacyPolicyHolder ?? ""} onChange={(e) => updateSection("insurance", { pharmacyPolicyHolder: e.target.value })} />
             </div>
           ) : null}
           {isManufacturer ? (
@@ -1040,8 +1051,9 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
                 </select>
               </label>
               <p className="text-sm text-slate-600">
-                If yes, you can upload denial letters in the documents step.
+                This means the insurance company said it would not pay for a medication or treatment, including after a prior authorization request. If more than one item was denied, list each one below. You can upload denial letters in Documents.
               </p>
+              {form.insurance.coverageDenied === "yes" ? <TextAreaField label="Which medications or treatments were denied?" placeholder="List each denied medication or treatment and anything you know about the decision." value={form.insurance.denialDetails ?? ""} onChange={(e) => updateSection("insurance", { denialDetails: e.target.value })} /> : null}
             </div>
           ) : null}
         </div>
@@ -1050,8 +1062,8 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
       {step === 6 ? (
         <div className="grid gap-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <TextField required label="Monthly household income" type="number" value={form.household.monthlyIncome} onChange={(e) => updateSection("household", { monthlyIncome: Number(e.target.value) })} />
-            <TextField required label="Annual household income" type="number" value={form.household.annualIncome} onChange={(e) => updateSection("household", { annualIncome: Number(e.target.value) })} />
+            <TextField required label="Monthly household income" inputMode="decimal" placeholder="Example: 4,250" value={form.household.monthlyIncome} onChange={(e) => updateSection("household", { monthlyIncome: e.target.value })} />
+            <TextField required label="Annual household income" inputMode="decimal" placeholder="Example: 51,000" value={form.household.annualIncome} onChange={(e) => updateSection("household", { annualIncome: e.target.value })} />
             <TextField required label="Household size" type="number" value={form.household.householdSize} onChange={(e) => updateSection("household", { householdSize: Number(e.target.value) })} />
             <label className="grid gap-2 text-sm">
               <span className="font-medium text-ink">
