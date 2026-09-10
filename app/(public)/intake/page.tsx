@@ -34,7 +34,7 @@ export default async function IntakePage() {
     draft = startedDraft;
   }
 
-  const draftPayload = draft?.payload as Partial<IntakePayload> | null | undefined;
+  const draftPayload = draft?.payload as (Partial<IntakePayload> & { _resumeStep?: number }) | null | undefined;
   const usableDraft = draftPayload?.assistanceType
     ? (draftPayload as IntakePayload)
     : null;
@@ -90,6 +90,7 @@ export default async function IntakePage() {
             </div>
             <IntakeForm
               initialDraft={usableDraft}
+              initialStep={typeof draftPayload?._resumeStep === "number" ? draftPayload._resumeStep : 0}
               draftUpdatedAt={draft?.updated_at ?? null}
             />
             <section className="grid gap-3 rounded-md border border-slate-200 bg-white p-5 text-sm leading-6 text-slate-700 shadow-soft">

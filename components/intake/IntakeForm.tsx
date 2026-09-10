@@ -536,12 +536,13 @@ const initialState: IntakePayload = {
 
 type IntakeFormProps = {
   initialDraft?: IntakePayload | null;
+  initialStep?: number;
   draftUpdatedAt?: string | null;
 };
 
-export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
+export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: IntakeFormProps) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 0), steps.length - 1));
   const [form, setForm] = useState<IntakePayload>(() => initialDraft ? {
     ...initialState, ...initialDraft,
     patient: { ...initialState.patient, ...initialDraft.patient, socialSecurityNumber: "" },
@@ -703,7 +704,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
     return requiredByStep.find(([, isComplete]) => !isComplete);
   }
 
-  async function saveDraft() {
+  async function saveDraft(resumeStep = step, quiet = false) {
     if (!form.consent.volunteerAccessConsent) {
       setSubmitError(
         "Please consent to volunteer access and contact before saving your application.",
@@ -713,13 +714,13 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
 
     setSavingDraft(true);
     setSubmitError("");
-    setDraftMessage("");
+    if (!quiet) setDraftMessage("");
 
     try {
       const response = await fetch("/api/intake/draft", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: form }),
+        body: JSON.stringify({ payload: { ...form, _resumeStep: resumeStep } }),
       });
 
       const result = (await response.json().catch(() => null)) as
@@ -727,7 +728,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
         | null;
 
       if (!response.ok) {
-        setDraftMessage(
+        if (!quiet) setDraftMessage(
           result?.error ??
             "We could not save your progress. Please try again.",
         );
@@ -737,14 +738,20 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
       const savedAt = result?.updatedAt
         ? new Date(result.updatedAt).toLocaleString()
         : new Date().toLocaleString();
-      setDraftMessage(`Progress saved ${savedAt}. You can sign back in later to continue.`);
+      if (!quiet) setDraftMessage(`Progress saved ${savedAt}. You can sign back in later to continue.`);
     } catch {
-      setDraftMessage(
+      if (!quiet) setDraftMessage(
         "We could not save your progress. Please check your connection and try again.",
       );
     } finally {
       setSavingDraft(false);
     }
+  }
+
+  async function continueToNextStep() {
+    const nextStep = Math.min(step + 1, steps.length - 1);
+    if (form.consent.volunteerAccessConsent) await saveDraft(nextStep, true);
+    setStep(nextStep);
   }
 
   async function submit() {
@@ -1289,12 +1296,12 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
           <Button
             variant="secondary"
             disabled={savingDraft || submitting}
-            onClick={saveDraft}
+            onClick={() => void saveDraft()}
           >
             {savingDraft ? "Saving..." : "Save and finish later"}
           </Button>
           {step < steps.length - 1 ? (
-            <Button onClick={() => setStep((current) => current + 1)}>
+            <Button onClick={() => void continueToNextStep()} disabled={savingDraft}>
               Continue
             </Button>
           ) : (
