@@ -8,6 +8,35 @@ export type ApplicationStatus =
 
 export type AdminRole = "admin" | "reviewer";
 
+export type MayoFinancialAssistance = {
+  relationshipToPatient: string[];
+  applicantFirstName: string;
+  applicantMiddleName: string;
+  applicantLastName: string;
+  mayoClinicNumber?: string;
+  responsiblePartyBirthDate: string;
+  maritalStatus?: string;
+  unemployedSince?: string;
+  claimedOnAnotherTaxReturn: "yes" | "no" | "";
+  assistanceNeed: string;
+  appliedForGovernmentAssistance: "yes" | "no" | "";
+  governmentAssistanceReason?: string;
+  pendingClaim: "yes" | "no" | "";
+  pendingClaimReason?: string;
+  employerInsuranceAvailable: "yes" | "no" | "";
+  employerInsuranceReason?: string;
+  hasSpouse: boolean;
+  spouseFirstName?: string;
+  spouseMiddleName?: string;
+  spouseLastName?: string;
+  spouseBirthDate?: string;
+  spouseEmploymentStatus?: string;
+  dependentsDetails: string;
+  otherIncomeDetails: string;
+  medicalDebtDetails: string;
+  certificationAccepted: boolean;
+};
+
 export type IntakePayload = {
   assistanceType: "manufacturer" | "hospital" | "both";
   patient: {
@@ -59,6 +88,7 @@ export type IntakePayload = {
     accountNumber?: string;
     guarantorNumber?: string;
     treatmentFacilities?: string[];
+    mayoFinancialAssistance?: MayoFinancialAssistance;
   };
   insurance: {
     hasInsurance: boolean;

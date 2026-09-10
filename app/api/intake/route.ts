@@ -59,6 +59,11 @@ const payloadSchema = z.object({
     accountNumber: z.string().optional(),
     guarantorNumber: z.string().optional(),
     treatmentFacilities: z.array(z.string()).default([]),
+    mayoFinancialAssistance: z.object({
+      relationshipToPatient: z.array(z.string()), applicantFirstName: z.string(), applicantMiddleName: z.string(), applicantLastName: z.string(), mayoClinicNumber: z.string().optional(), responsiblePartyBirthDate: z.string(), maritalStatus: z.string().optional(), unemployedSince: z.string().optional(),
+      claimedOnAnotherTaxReturn: z.enum(["yes", "no", ""]), assistanceNeed: z.string(), appliedForGovernmentAssistance: z.enum(["yes", "no", ""]), governmentAssistanceReason: z.string().optional(), pendingClaim: z.enum(["yes", "no", ""]), pendingClaimReason: z.string().optional(), employerInsuranceAvailable: z.enum(["yes", "no", ""]), employerInsuranceReason: z.string().optional(),
+      hasSpouse: z.boolean(), spouseFirstName: z.string().optional(), spouseMiddleName: z.string().optional(), spouseLastName: z.string().optional(), spouseBirthDate: z.string().optional(), spouseEmploymentStatus: z.string().optional(), dependentsDetails: z.string(), otherIncomeDetails: z.string(), medicalDebtDetails: z.string(), certificationAccepted: z.boolean(),
+    }).optional(),
   }),
   insurance: z.object({
     hasInsurance: z.boolean(),
@@ -242,7 +247,7 @@ export async function POST(request: Request) {
       guarantor_number: payload.hospital.guarantorNumber || null,
       treatment_facilities: payload.hospital.treatmentFacilities,
       has_insurance: payload.insurance.hasInsurance,
-      insurance_details: { ...payload.insurance, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName },
+      insurance_details: { ...payload.insurance, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || payload.patient.firstName, applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || payload.patient.lastName, responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || payload.patient.dateOfBirth, location: "Mayo Clinic Arizona" } : undefined },
       monthly_income: payload.household.monthlyIncome,
       annual_income: payload.household.annualIncome,
       household_size: payload.household.householdSize,

@@ -56,6 +56,7 @@ export default async function SubmissionDetailPage({
     ? (submission.treatment_facilities as string[])
     : [];
   const insurance = (submission.insurance_details ?? {}) as Record<string, unknown>;
+  const mayo = (insurance.mayoFinancialAssistance ?? null) as Record<string, unknown> | null;
 
   await recordAuditEvent({
     actorId: session.user.id,
@@ -160,6 +161,22 @@ export default async function SubmissionDetailPage({
                 <dd>${Number(submission.monthly_income).toLocaleString()}</dd>
               </div>
             </dl>
+            {mayo ? <div className="grid gap-3 rounded-md border border-pine/20 bg-pine/5 p-4"><h3 className="font-semibold">Mayo Clinic Arizona financial assistance</h3><dl className="grid gap-3 text-sm md:grid-cols-2">
+              <div><dt className="text-slate-500">Applicant</dt><dd>{[mayo.applicantFirstName, mayo.applicantMiddleName, mayo.applicantLastName].filter(Boolean).map(String).join(" ")}</dd></div>
+              <div><dt className="text-slate-500">Relationship</dt><dd>{Array.isArray(mayo.relationshipToPatient) ? mayo.relationshipToPatient.join(", ") : "N/A"}</dd></div>
+              <div><dt className="text-slate-500">Mayo Clinic number</dt><dd>{String(mayo.mayoClinicNumber || "N/A")}</dd></div>
+              <div><dt className="text-slate-500">Responsible party birth date</dt><dd>{formatUsDate(String(mayo.responsiblePartyBirthDate || ""))}</dd></div>
+              <div><dt className="text-slate-500">Marital status</dt><dd>{String(mayo.maritalStatus || "N/A")}</dd></div>
+              <div><dt className="text-slate-500">Claimed on another tax return</dt><dd>{String(mayo.claimedOnAnotherTaxReturn || "N/A")}</dd></div>
+              <div className="md:col-span-2"><dt className="text-slate-500">Need for assistance</dt><dd className="whitespace-pre-wrap">{String(mayo.assistanceNeed || "N/A")}</dd></div>
+              <div><dt className="text-slate-500">Government medical assistance</dt><dd>{String(mayo.appliedForGovernmentAssistance || "N/A")} {String(mayo.governmentAssistanceReason || "")}</dd></div>
+              <div><dt className="text-slate-500">Pending lawsuit/settlement/claim</dt><dd>{String(mayo.pendingClaim || "N/A")} {String(mayo.pendingClaimReason || "")}</dd></div>
+              <div><dt className="text-slate-500">Employer insurance available</dt><dd>{String(mayo.employerInsuranceAvailable || "N/A")} {String(mayo.employerInsuranceReason || "")}</dd></div>
+              <div><dt className="text-slate-500">Spouse/partner</dt><dd>{mayo.hasSpouse ? [mayo.spouseFirstName, mayo.spouseMiddleName, mayo.spouseLastName].filter(Boolean).map(String).join(" ") || "Yes" : "No"}</dd></div>
+              <div className="md:col-span-2"><dt className="text-slate-500">Dependents</dt><dd className="whitespace-pre-wrap">{String(mayo.dependentsDetails || "None")}</dd></div>
+              <div className="md:col-span-2"><dt className="text-slate-500">Other income</dt><dd className="whitespace-pre-wrap">{String(mayo.otherIncomeDetails || "None")}</dd></div>
+              <div className="md:col-span-2"><dt className="text-slate-500">Medical debt</dt><dd className="whitespace-pre-wrap">{String(mayo.medicalDebtDetails || "None")}</dd></div>
+            </dl></div> : null}
             <div className="grid gap-3">
               <h3 className="font-semibold">Household members</h3>
               {submission.household_members.map(

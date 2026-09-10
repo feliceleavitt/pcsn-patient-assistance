@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { AutocompleteField } from "@/components/ui/AutocompleteField";
 import { TextAreaField, TextField } from "@/components/ui/Field";
 import { arizonaTreatmentFacilities } from "@/lib/resources";
-import type { IntakePayload } from "@/lib/types";
+import { MayoFinancialAssistanceSection } from "@/components/intake/MayoFinancialAssistanceSection";
+import type { IntakePayload, MayoFinancialAssistance } from "@/lib/types";
 
 type DocumentType =
   | "photo_id"
@@ -427,6 +428,12 @@ const fieldStepLabels = [
   "Consent",
 ] as const;
 
+const emptyMayoApplication: MayoFinancialAssistance = {
+  relationshipToPatient: ["I am the patient"], applicantFirstName: "", applicantMiddleName: "", applicantLastName: "", responsiblePartyBirthDate: "",
+  claimedOnAnotherTaxReturn: "", assistanceNeed: "", appliedForGovernmentAssistance: "", pendingClaim: "", employerInsuranceAvailable: "",
+  hasSpouse: false, dependentsDetails: "", otherIncomeDetails: "", medicalDebtDetails: "", certificationAccepted: false,
+};
+
 const initialState: IntakePayload = {
   assistanceType: "manufacturer",
   patient: {
@@ -478,6 +485,7 @@ const initialState: IntakePayload = {
     accountNumber: "",
     guarantorNumber: "",
     treatmentFacilities: [],
+    mayoFinancialAssistance: emptyMayoApplication,
   },
   insurance: {
     hasInsurance: true,
@@ -547,6 +555,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
     form.assistanceType === "manufacturer" || form.assistanceType === "both";
   const isHospital =
     form.assistanceType === "hospital" || form.assistanceType === "both";
+  const needsMayoApplication = isHospital && (form.hospital.treatmentFacilities ?? []).includes("Mayo Clinic Arizona");
   const visibleDocumentTypes = useMemo<DocumentType[]>(
     () =>
       [
@@ -637,6 +646,10 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
     updateSection("diagnosis", { treatments });
   }
 
+  function updateMayoApplication(value: Partial<MayoFinancialAssistance>) {
+    updateSection("hospital", { mayoFinancialAssistance: { ...(form.hospital.mayoFinancialAssistance ?? emptyMayoApplication), ...value } });
+  }
+
   function updateMedication(index: number, value: string) {
     const medications = [...(form.diagnosis.medications ?? [])];
     medications[index] = value;
@@ -670,6 +683,9 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
       [4, hasText(form.provider.city), "Provider city is required."],
       [4, hasText(form.provider.state), "Provider state is required."],
       [4, hasText(form.provider.postalCode), "Provider postal code is required."],
+      [3, !needsMayoApplication || hasText(form.hospital.mayoFinancialAssistance?.applicantMiddleName), "Mayo applicant middle name or 'not applicable' is required."],
+      [3, !needsMayoApplication || hasText(form.hospital.mayoFinancialAssistance?.assistanceNeed), "Please describe the need for Mayo financial assistance."],
+      [3, !needsMayoApplication || Boolean(form.hospital.mayoFinancialAssistance?.certificationAccepted), "Mayo certification is required."],
       [6, form.household.householdSize > 0, "Household size is required."],
     ];
 
@@ -975,6 +991,7 @@ export function IntakeForm({ initialDraft, draftUpdatedAt }: IntakeFormProps) {
               ))}
             </div>
           </div>
+          {needsMayoApplication ? <MayoFinancialAssistanceSection value={form.hospital.mayoFinancialAssistance ?? emptyMayoApplication} patient={form.patient} onChange={updateMayoApplication} /> : null}
         </div>
       ) : null}
 

@@ -228,6 +228,29 @@ export async function buildPatientPacketPdf({
   writeLine("Household size", submission.household_size);
   writeLine("Employment status", submission.employment_status);
 
+  const mayo = submission.insurance_details?.mayoFinancialAssistance as Record<string, unknown> | undefined;
+  if (mayo) {
+    heading("Mayo Clinic Arizona financial assistance");
+    writeLine("Applicant", [mayo.applicantFirstName, mayo.applicantMiddleName, mayo.applicantLastName].filter(Boolean).join(" "));
+    writeLine("Relationship to patient", mayo.relationshipToPatient);
+    writeLine("Mayo Clinic number", mayo.mayoClinicNumber);
+    writeLine("Responsible party birth date", formatUsDate(String(mayo.responsiblePartyBirthDate ?? "")));
+    writeLine("Marital status", mayo.maritalStatus);
+    writeLine("Claimed on another tax return", mayo.claimedOnAnotherTaxReturn);
+    writeLine("Need for financial assistance", mayo.assistanceNeed);
+    writeLine("Applied/will apply for government assistance", mayo.appliedForGovernmentAssistance);
+    writeLine("Government assistance reason", mayo.governmentAssistanceReason);
+    writeLine("Pending lawsuit, settlement, injury, or liability claim", mayo.pendingClaim);
+    writeLine("Pending claim reason", mayo.pendingClaimReason);
+    writeLine("Employer or spouse employer insurance available", mayo.employerInsuranceAvailable);
+    writeLine("Employer insurance reason", mayo.employerInsuranceReason);
+    writeLine("Spouse/partner", mayo.hasSpouse ? [mayo.spouseFirstName, mayo.spouseMiddleName, mayo.spouseLastName].filter(Boolean).join(" ") : "No");
+    writeLine("Dependents", mayo.dependentsDetails);
+    writeLine("Other income", mayo.otherIncomeDetails);
+    writeLine("Medical debt", mayo.medicalDebtDetails);
+    writeLine("Mayo certification accepted", mayo.certificationAccepted);
+  }
+
   if (submission.household_members?.length) {
     heading("Household members");
     submission.household_members.forEach((member) => {
