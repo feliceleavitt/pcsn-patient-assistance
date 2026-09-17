@@ -43,3 +43,29 @@ HIPAA-conscious intake and review portal built with Next.js, TypeScript, Tailwin
 - Audit rows are written on admin view, edit, download, and PDF export operations.
 - Notification emails intentionally include no patient name, diagnosis,
   medication, document names, or other PHI.
+
+## Volunteer password recovery
+
+Volunteers can select **Forgot your password?** at `/admin/login`, receive an
+email, and choose a new password at `/admin/reset-password`. Recovery is limited
+to the existing volunteer allowlist and uses `volunteer_credentials`; it does
+not change a patient's Supabase Auth password or require a new database migration.
+
+Required deployment settings: `NEXT_PUBLIC_APP_URL` (the canonical HTTPS portal
+URL), `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and `ADMIN_SESSION_SECRET`
+(or the existing `VOLUNTEER_SESSION_SECRET` fallback), plus the existing Supabase
+service credentials. Migration `006_volunteer_credentials.sql` must already be
+applied. Recovery links expire within 30 minutes, are carried in the URL fragment,
+and are consumed atomically when the password is saved. Password changes also
+invalidate outstanding recovery links. Duplicate emails are deduplicated by
+Resend in five-minute windows. Valid email submissions receive a generic response
+so account membership and email delivery failures are not disclosed.
+
+Recovery clears the current browser's volunteer cookie and requires sign-in.
+Existing sessions in other browsers retain their existing expiration (up to eight
+hours); this change does not introduce global session revocation.
+
+Validation: `node --test tests/volunteer-password-reset.cjs`, `npm run typecheck`,
+and `npm run build`. Route tests isolate the database and email provider. For a
+live smoke test, request recovery for an approved test mailbox, follow the email,
+set a new password, sign in, then confirm the same link cannot be reused.

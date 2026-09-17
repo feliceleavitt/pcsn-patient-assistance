@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +42,7 @@ export default function AdminLoginPage() {
         </div>
         <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <Link href="/admin/forgot-password" className="text-sm font-semibold text-pine underline">Forgot your password?</Link>
         {error ? <p className="text-sm text-coral">{error}</p> : null}
         <Button onClick={submit}>Sign in</Button>
         <p className="rounded-md bg-paper p-3 text-sm text-slate-600">
