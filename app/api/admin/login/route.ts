@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const service = createServiceClient();
 
   if (isVolunteerEmail(email)) {
-    const { data: credential } = await service
+    const { data: credential, error: credentialError } = await service
       .from("volunteer_credentials")
       .select("email,password_hash,password_salt,must_change_password")
       .eq("email", email)
@@ -47,6 +47,10 @@ export async function POST(request: Request) {
         password_salt: string;
         must_change_password: boolean;
       }>();
+
+    if (credentialError) {
+      return NextResponse.json({ error: "Volunteer login is temporarily unavailable." }, { status: 503 });
+    }
 
     if (credential) {
       const validPassword = verifyVolunteerPassword(
@@ -87,11 +91,15 @@ export async function POST(request: Request) {
   const volunteer = authenticateVolunteer(email, password);
   if (volunteer) {
     const passwordRecord = hashVolunteerPassword(password);
-    await service.from("volunteer_credentials").upsert({
+    const { error: createError } = await service.from("volunteer_credentials").insert({
       email: volunteer.email,
       ...passwordRecord,
       must_change_password: true,
     });
+
+    if (createError) {
+      return NextResponse.json({ error: "Please try signing in again with your current password." }, { status: 409 });
+    }
 
     const response = NextResponse.json({ ok: true, mustChangePassword: true });
     let token: string;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { volunteerPasswordSchema } from "@/lib/security/volunteer-password-reset";
 import { requireAdminSessionForPasswordChange } from "@/lib/security/admin";
 import {
   createVolunteerSessionToken,
@@ -12,14 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 const cookieName =
   process.env.ADMIN_SESSION_COOKIE_NAME ?? "pcsn_admin_session";
 
-const passwordSchema = z.object({
-  password: z
-    .string()
-    .min(10, "Use at least 10 characters.")
-    .regex(/[A-Z]/, "Use at least one uppercase letter.")
-    .regex(/[a-z]/, "Use at least one lowercase letter.")
-    .regex(/[0-9]/, "Use at least one number."),
-});
+const passwordSchema = z.object({ password: volunteerPasswordSchema });
 
 export async function POST(request: Request) {
   const session = await requireAdminSessionForPasswordChange();

@@ -15,11 +15,12 @@ function getNotificationRecipients() {
 
 type EmailMessage = {
   to: string;
+  idempotencyKey?: string;
   subject: string;
   text: string;
 };
 
-async function sendEmail({ to, subject, text }: EmailMessage) {
+async function sendEmail({ to, subject, text, idempotencyKey }: EmailMessage) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn("Skipping email notification: RESEND_API_KEY is not set.");
@@ -39,6 +40,7 @@ async function sendEmail({ to, subject, text }: EmailMessage) {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify({
       from,
@@ -51,7 +53,7 @@ async function sendEmail({ to, subject, text }: EmailMessage) {
   if (response.ok) return true;
 
   console.error(
-    `Unable to send email notification to ${to}: ${response.status} ${await response.text()}`,
+    `Unable to send email notification: HTTP ${response.status}`,
   );
   return false;
 }
@@ -138,4 +140,17 @@ export async function sendPatientSignatureRequest(patientEmail: string, signatur
   } catch (error) {
     console.error("Unable to send signature request:", error);
   }
+}
+
+export async function sendVolunteerPasswordReset(email: string, resetUrl: string, idempotencyKey: string) {
+  return sendEmail({
+    to: email,
+    idempotencyKey,
+    subject: "Reset your PCSN volunteer portal password",
+    text: [
+      "A password reset was requested for your Phoenix Cancer Support Network volunteer account.",
+      "", "Use this one-time link to choose a new password. It expires within 30 minutes:",
+      resetUrl, "", "If you did not request this, ignore this email. Your password has not changed.",
+    ].join("\n"),
+  });
 }
