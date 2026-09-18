@@ -82,6 +82,7 @@ export default async function AdminDashboardPage() {
             </p>
           </div>
             <div className="flex flex-wrap items-center gap-3">
+              {demoMode ? <Link href="/admin/assistance-plan-preview" className="inline-flex h-10 items-center rounded-md bg-pine px-4 text-sm font-semibold text-white">Synthetic Assistance Plan preview</Link> : null}
               <Link
                 href="/admin/archive"
                 className="inline-flex h-10 items-center rounded-md border border-pine/30 bg-white px-4 text-sm font-semibold text-pine"

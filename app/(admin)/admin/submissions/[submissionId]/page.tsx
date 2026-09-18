@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { AssistancePlan } from "@/components/admin/AssistancePlan";
+import { adaptSubmission } from "@/lib/assistance/profile";
 import { notFound } from "next/navigation";
 import { StatusControls } from "@/components/admin/StatusControls";
 import { ArchiveControls } from "@/components/admin/ArchiveControls";
@@ -90,6 +92,9 @@ export default async function SubmissionDetailPage({
             </a>
           </div>
         </div>
+
+        <AssistancePlan profile={adaptSubmission(submission)} />
+        {demoMode ? <Link href="/admin/assistance-plan-preview" className="text-sm text-pine underline">Explore synthetic Assistance Plan examples (development only)</Link> : null}
 
         <ApplicationEditor submissionId={submissionId} initial={{
           firstName: submission.patients.first_name, lastName: submission.patients.last_name,
