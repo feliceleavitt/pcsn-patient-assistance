@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:assistance": "node --test tests/assistance-*.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
