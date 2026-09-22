@@ -6,13 +6,15 @@ import { createServiceClient } from "@/lib/supabase/server";
 
 export default async function PatientPortalPage() {
   const session = await requirePatientSession();
-  const { data: application } = await createServiceClient()
+  const { data: application, error } = await createServiceClient()
     .from("submissions")
     .select("*,patients!inner(*),documents(*),assistance_packets(*)")
     .eq("patients.user_id", session.user.id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (error) throw new Error("Unable to load your application. Please try again.");
 
   return (
     <main className="min-h-screen bg-paper p-5 md:p-8">
@@ -27,7 +29,7 @@ export default async function PatientPortalPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/intake"
+              href="/intake?new=1"
               className="inline-flex h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-ink"
             >
               Start new request
@@ -39,6 +41,7 @@ export default async function PatientPortalPage() {
         {application ? (
           <PatientApplicationPanel
             application={{
+              volunteerAccessConsent: application.insurance_details?.volunteerAccessConsent === true,
               status: application.status,
               createdAt: application.created_at,
               missingDocuments: application.missing_documents,
@@ -81,7 +84,7 @@ export default async function PatientPortalPage() {
               you can come back later to add missing information.
             </p>
             <Link
-              href="/intake"
+              href="/intake?new=1"
               className="inline-flex h-11 w-fit items-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
             >
               Start application

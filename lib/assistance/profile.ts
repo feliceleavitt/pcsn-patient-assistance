@@ -57,7 +57,7 @@ export const profileSections = [
   },
   {
     label: "Financial needs",
-    keys: ["assistance", "assistanceNeed", "medicalDebtDetails", "utilityNeed"],
+    keys: ["assistance", "financialNeeds", "assistanceNeed", "medicalDebtDetails", "utilityNeed"],
   },
 ];
 const notApplicable = (value: string) =>
@@ -238,8 +238,13 @@ export function adaptSubmission(input: unknown): Profile {
         `submissions.insurance_details.mayoFinancialAssistance.${key}`,
         mayo[key],
       ],
+      ...(Array.isArray(mayo.relationshipToPatient) && mayo.relationshipToPatient.length === 1 && mayo.relationshipToPatient[0] === "I am the patient" && ["applicantFirstName", "applicantLastName", "responsiblePartyBirthDate"].includes(key)
+        ? [[`patients.${key === "applicantFirstName" ? "first_name" : key === "applicantLastName" ? "last_name" : "date_of_birth"} (applicant explicitly identified as patient)`, p[key === "applicantFirstName" ? "first_name" : key === "applicantLastName" ? "last_name" : "date_of_birth"]] as [string, unknown]] : []),
     ]);
-  // These are unsupported by today's intake. A missing branch is not a negative answer.
+  // A missing or unchecked need is unknown, never an inferred negative answer.
+  const utilities = row(insurance.utilities);
+  const utilityRequested = strings(insurance.financialNeeds).includes("electricity_gas");
+  add("financialNeeds", "Financial needs reported", [["submissions.insurance_details.financialNeeds", strings(insurance.financialNeeds).join("; ")]]);
   for (const [key, label] of [
     ["utilityNeed", "Trouble paying electricity or gas"],
     ["utilityProvider", "Utility provider"],
@@ -248,7 +253,7 @@ export function adaptSubmission(input: unknown): Profile {
     ["shutoff", "Service off or shutoff notice"],
     ["utilitiesInRent", "Utilities included in rent"],
   ])
-    add(key, label, [], "Not collected by the existing intake.");
+    add(key, label, key === "utilityNeed" ? [["submissions.insurance_details.financialNeeds", utilityRequested ? "yes" : undefined]] : [[`submissions.insurance_details.utilities.${key}`, utilityRequested ? utilities[key] : undefined]], "Only explicitly selected utility needs are used for screening.");
   const documents = (Array.isArray(s.documents) ? s.documents : []).flatMap(
     (raw, index) => {
       const d = row(raw);

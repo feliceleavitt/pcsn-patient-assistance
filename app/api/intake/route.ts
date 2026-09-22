@@ -1,3 +1,4 @@
+import { financialNeedOptions } from "@/lib/intake/needs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -14,7 +15,7 @@ const payloadSchema = z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),
     dateOfBirth: z.string().min(1),
-    socialSecurityNumber: z.string().transform((value) => value.replace(/\D/g, "")).pipe(z.string().regex(/^\d{9}$/)),
+    socialSecurityNumber: z.string().optional().default("").transform((value) => value.replace(/\D/g, "")).pipe(z.string().refine(value => value === "" || /^\d{9}$/.test(value), "Enter nine digits or leave blank.")),
     phone: z.string().min(1),
     email: z.string().email(),
     addressLine1: z.string().min(1),
@@ -48,13 +49,13 @@ const payloadSchema = z.object({
     clinicName: z.string().min(1),
     providerName: z.string().min(1),
     npi: z.string().optional(),
-    phone: z.string().min(1),
+    phone: z.string().optional().default(""),
     fax: z.string().optional(),
-    addressLine1: z.string().min(1),
+    addressLine1: z.string().optional().default(""),
     addressLine2: z.string().optional(),
-    city: z.string().min(1),
-    state: z.string().min(1),
-    postalCode: z.string().min(1),
+    city: z.string().optional().default(""),
+    state: z.string().optional().default(""),
+    postalCode: z.string().optional().default(""),
   }),
   hospital: z.object({
     accountNumber: z.string().optional(),
@@ -91,6 +92,8 @@ const payloadSchema = z.object({
     eobAvailable: z.boolean(),
   }),
   household: z.object({
+    financialNeeds: z.array(z.string().refine(value => financialNeedOptions.some(([id]) => id === value))).max(12).optional(),
+    utilities: z.object({ utilityProvider:z.string().max(200).optional(),accountHolder:z.string().max(200).optional(),serviceAddress:z.string().max(500).optional(),shutoff:z.enum(["yes","no","not_sure",""]).optional(),utilitiesInRent:z.enum(["yes","no","not_sure",""]).optional() }).optional(),
     monthlyIncome: z.union([z.number(), z.string()]).transform((value) => Number(String(value).replace(/[$,\s]/g, ""))).pipe(z.number().nonnegative()),
     annualIncome: z.union([z.number(), z.string()]).transform((value) => Number(String(value).replace(/[$,\s]/g, ""))).pipe(z.number().nonnegative()),
     householdSize: z.number().int().positive(),
@@ -200,8 +203,13 @@ export async function POST(request: Request) {
     );
   }
 
+  let draftDocumentIds: string[];
+  try {
+    draftDocumentIds = z.array(z.string().uuid()).max(100).parse(JSON.parse(String(formData.get("draftDocumentIds") ?? "[]")));
+    if (new Set(draftDocumentIds).size !== draftDocumentIds.length) throw new Error("Duplicate documents");
+  } catch { return NextResponse.json({error:"Please reload your saved documents before submitting."},{status:400}); }
   const payload = parsed.data;
-  const encryptedSsn = encryptBuffer(Buffer.from(payload.patient.socialSecurityNumber, "utf8"));
+  const encryptedSsn = payload.patient.socialSecurityNumber ? encryptBuffer(Buffer.from(payload.patient.socialSecurityNumber, "utf8")) : null;
   const supabase = createServiceClient();
   const { data: patient, error: patientError } = await supabase
     .from("patients")
@@ -250,7 +258,7 @@ export async function POST(request: Request) {
       guarantor_number: payload.hospital.guarantorNumber || null,
       treatment_facilities: payload.hospital.treatmentFacilities,
       has_insurance: payload.insurance.hasInsurance,
-      insurance_details: { ...payload.insurance, socialSecurityNumber: { encrypted: encryptedSsn.encrypted.toString("base64"), iv: encryptedSsn.iv, tag: encryptedSsn.tag, last4: payload.patient.socialSecurityNumber.slice(-4) }, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || payload.patient.firstName, applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || payload.patient.lastName, responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || payload.patient.dateOfBirth, location: "Mayo Clinic Arizona" } : undefined },
+      insurance_details: { ...payload.insurance, volunteerAccessConsent: payload.consent.volunteerAccessConsent, volunteerAccessConsentedAt: payload.consent.signedAt, financialNeeds: payload.household.financialNeeds, utilities: payload.household.financialNeeds?.includes("electricity_gas") ? payload.household.utilities : undefined, socialSecurityNumber: encryptedSsn ? { encrypted: encryptedSsn.encrypted.toString("base64"), iv: encryptedSsn.iv, tag: encryptedSsn.tag, last4: payload.patient.socialSecurityNumber.slice(-4) } : undefined, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.firstName : ""), applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.lastName : ""), responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.dateOfBirth : ""), location: "Mayo Clinic Arizona" } : undefined },
       monthly_income: payload.household.monthlyIncome,
       annual_income: payload.household.annualIncome,
       household_size: payload.household.householdSize,
@@ -269,6 +277,16 @@ export async function POST(request: Request) {
       { error: "Unable to save submission" },
       { status: 500 },
     );
+  }
+
+  if (draftDocumentIds.length) {
+    const {error:attachError} = await supabase.rpc("pcsn_attach_draft_documents", {p_user:patientSession.user.id,p_submission:submission.id,p_ids:draftDocumentIds});
+    if (attachError) {
+      // The transfer RPC is atomic. Keep the original draft and documents for retry.
+      await supabase.from("submissions").delete().eq("id",submission.id);
+      await supabase.from("patients").delete().eq("id",patient.id).eq("user_id",patientSession.user.id);
+      return NextResponse.json({error:"Saved documents could not be attached. Your draft is retained; reload and try again."},{status:409});
+    }
   }
 
   const files = Array.from(formData.entries()).filter(

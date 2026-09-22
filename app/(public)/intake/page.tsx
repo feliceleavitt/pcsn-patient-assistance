@@ -1,24 +1,39 @@
+import { readPublishedCatalog } from "@/lib/catalog/store";
 import Image from "next/image";
 import Link from "next/link";
+import { PortalIntroduction } from "@/components/patient/PortalIntroduction";
 import { redirect } from "next/navigation";
+import { PatientSignOutButton } from "@/components/patient/PatientSignOutButton";
 import { IntakeForm } from "@/components/intake/IntakeForm";
 import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { IntakePayload } from "@/lib/types";
 
-export default async function IntakePage() {
+export default async function IntakePage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   const patientSession = await getPatientSession();
   if (!patientSession) {
     redirect("/patient/login?next=/intake");
   }
 
+  const catalog = await readPublishedCatalog();
   const supabase = createServiceClient();
-  const { data: existingDraft } = await supabase
+  const { data: submittedRequest, error: requestError } = await supabase
+    .from("submissions")
+    .select("id,patients!inner(user_id)")
+    .eq("patients.user_id", patientSession.user.id)
+    .limit(1)
+    .maybeSingle();
+  if (requestError) throw new Error("Unable to check your existing request. Please try again.");
+  // A new request must be deliberate; returning patients should see their submitted request.
+  if (submittedRequest && (await searchParams).new !== "1") redirect("/patient");
+
+  const { data: existingDraft, error: draftError } = await supabase
     .from("intake_drafts")
     .select("payload, updated_at")
     .eq("user_id", patientSession.user.id)
     .maybeSingle();
 
+  if (draftError) throw new Error("Unable to load your saved application. Please try again.");
   let draft = existingDraft;
   if (!existingDraft) {
     const { data: startedDraft } = await supabase
@@ -75,11 +90,12 @@ export default async function IntakePage() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <Link
-                  href="/patient/login"
+                  href="/patient"
                   className="inline-flex h-11 items-center rounded-md bg-pine px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-pine/90"
                 >
-                  Patient sign in
+                  My dashboard
                 </Link>
+                <PatientSignOutButton />
                 <Link
                   href="/admin/login"
                   className="inline-flex h-11 items-center rounded-md border border-pine/30 bg-white px-4 text-sm font-semibold text-pine shadow-soft transition hover:border-pine hover:bg-mist"
@@ -88,7 +104,12 @@ export default async function IntakePage() {
                 </Link>
               </div>
             </div>
+            <PortalIntroduction />
             <IntakeForm
+              catalogQuestions={Object.fromEntries(catalog.entries.filter(e=>e.kind==="question" && e.factKey).map(e=>[e.factKey,{name:e.name,help:e.help}]))}
+              catalogDocumentHelp={Object.fromEntries(catalog.entries.filter(e=>e.kind==="document" && e.help).flatMap(e=>e.documentTypes.map(t=>[t,e.help])))}
+              catalogDrugs={catalog.entries.filter(e=>e.kind==="drug").flatMap(e=>[e.name,...e.aliases])}
+              catalogFacilities={catalog.entries.filter(e=>e.kind==="facility").map(e=>e.name)}
               initialDraft={usableDraft}
               initialStep={typeof draftPayload?._resumeStep === "number" ? draftPayload._resumeStep : 0}
               draftUpdatedAt={draft?.updated_at ?? null}
