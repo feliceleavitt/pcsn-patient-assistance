@@ -22,7 +22,12 @@ type DocumentRequirement = {
   conditional?: boolean;
   whenFact?: string;
 };
-type Program = {
+export type Program = {
+  reviewRequired?: boolean;
+  role?: string;
+  why?: string;
+  submissionInstructions?: string;
+  renewalDays?: number;
   id: string;
   name: string;
   applicationId: string;
@@ -231,7 +236,7 @@ export function evaluateDocuments(profile: Profile, program: Program) {
     });
 }
 
-export function buildPlan(profile: Profile) {
+export function buildPlan(profile: Profile, publishedPrograms?: Program[]) {
   const facility = known(profile, "facilities")
     ?.split("; ")
     .some((f) => f.toLowerCase() === "mayo clinic arizona");
@@ -239,14 +244,22 @@ export function buildPlan(profile: Profile) {
     known(profile, "assistance") ?? "",
   );
   const utilityNeed = known(profile, "utilityNeed") === "yes";
-  return programs
+  return (publishedPrograms ?? programs)
     .filter((p) =>
-      p.id === "mayo-az" ? facility && hospitalNeed : utilityNeed,
+      publishedPrograms
+        ? true
+        : p.id === "mayo-az"
+          ? facility && hospitalNeed
+          : utilityNeed,
     )
     .map((program) => {
       const facts = program.fields.map((key) => ({
         key,
-        ...profile.facts[key],
+        ...(profile.facts[key] ?? {
+          label: key,
+          state: "unknown" as const,
+          evidence: [],
+        }),
       }));
       const missing = facts.filter(
         (f) => f.state === "unknown" || f.state === "conflict",
@@ -254,7 +267,8 @@ export function buildPlan(profile: Profile) {
       const notApplicable = facts.filter((f) => f.state === "not_applicable");
       const evidence = evaluateDocuments(profile, program);
       const urgent =
-        program.id !== "mayo-az" && known(profile, "shutoff") === "yes";
+        program.applicationId === "az-des-direct-energy" &&
+        known(profile, "shutoff") === "yes";
       const priorityKeys =
         program.id === "mayo-az"
           ? [
@@ -281,14 +295,20 @@ export function buildPlan(profile: Profile) {
           ? `Ask the patient for ${missingDocument.status === "Outdated" ? "a current replacement for " : ""}${missingDocument.label.toLowerCase()}. First check unclassified uploads and the shared evidence list to avoid requesting a duplicate.`
           : "Review the available facts and document ownership/dates against the official application. Confirm the applicable evidence and unresolved program rules before applying.";
       const routingKeys =
-        program.id === "mayo-az"
-          ? ["firstName", "lastName", "assistanceNeed"]
-          : ["state", "serviceAddress", "utilityProvider"];
+        publishedPrograms &&
+        !["mayo-az", "liheap", "power-az"].includes(program.id)
+          ? program.fields
+          : program.id === "mayo-az"
+            ? ["firstName", "lastName", "assistanceNeed"]
+            : ["state", "serviceAddress", "utilityProvider"];
       const routingKnown = routingKeys.every(
         (key) => known(profile, key) !== undefined,
       );
       const state = known(profile, "state")?.toUpperCase();
-      const arizonaUnconfirmed = program.id !== "mayo-az" && state !== "AZ" && state !== "ARIZONA";
+      const arizonaUnconfirmed =
+        program.applicationId === "az-des-direct-energy" &&
+        state !== "AZ" &&
+        state !== "ARIZONA";
       const suggestedStage = missing.length
         ? 1
         : evidence.some((d) => d.status !== "Available")
@@ -298,17 +318,20 @@ export function buildPlan(profile: Profile) {
         ...program,
         screening: !routingKnown
           ? "More information needed"
-          : notApplicable.length || arizonaUnconfirmed
+          : notApplicable.length || arizonaUnconfirmed || program.reviewRequired
             ? "Review recommended"
             : "Potential match",
         suggestedStage,
         workflow: workflowStages[suggestedStage],
         progress: "Not tracked in this preview",
-        role: "PCSN helps patient apply — proposed pilot role; confirm before proceeding",
+        role:
+          program.role ??
+          "PCSN helps patient apply — proposed pilot role; confirm before proceeding",
         why:
-          program.id === "mayo-az"
+          program.why ??
+          (program.id === "mayo-az"
             ? "The intake lists Mayo Clinic Arizona and requests hospital bill assistance. This supports reviewing the route, not an eligibility decision."
-            : "The patient explicitly reported trouble paying electricity or gas. Confirm the Arizona service location and DES rules before applying.",
+            : "The patient explicitly reported trouble paying electricity or gas. Confirm the Arizona service location and DES rules before applying."),
         available: facts.filter((f) => f.state === "known"),
         notApplicable,
         missing,

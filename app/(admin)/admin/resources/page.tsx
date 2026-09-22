@@ -1,10 +1,27 @@
 import Link from "next/link";
-import { volunteerResources } from "@/lib/resources";
+import { readPublishedCatalog } from "@/lib/catalog/store";
+import type { VolunteerResource } from "@/lib/resources";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 
 export default async function VolunteerResourcesPage() {
   const session = await requireAdminSession();
+  const catalog = await readPublishedCatalog();
+  const volunteerResources: VolunteerResource[] = catalog.entries
+    .filter((e) => e.kind === "program")
+    .map((e) => ({
+      name: e.name,
+      category:
+        e.category === "Drug company assistance"
+          ? "Drug company assistance"
+          : "Hospital / cancer center",
+      focus: e.description,
+      phone: e.phone,
+      website: e.applicationUrl,
+      forms: e.applicationId,
+      patientItems: e.reviewNotes,
+      volunteerNotes: e.submissionInstructions,
+    }));
   await recordAuditEvent({
     actorId: session.user.id,
     action: "view_resources",
@@ -40,7 +57,9 @@ export default async function VolunteerResourcesPage() {
         </div>
 
         <section className="grid gap-4">
-          <h2 className="text-xl font-semibold">Arizona hospital and cancer center programs</h2>
+          <h2 className="text-xl font-semibold">
+            Medical bills and other assistance routes
+          </h2>
           <div className="grid gap-4 md:grid-cols-2">
             {hospitalResources.map((resource) => (
               <ResourceCard key={resource.name} resource={resource} />
@@ -49,7 +68,9 @@ export default async function VolunteerResourcesPage() {
         </section>
 
         <section className="grid gap-4">
-          <h2 className="text-xl font-semibold">Drug company patient assistance programs</h2>
+          <h2 className="text-xl font-semibold">
+            Drug company patient assistance programs
+          </h2>
           <div className="grid gap-4 md:grid-cols-2">
             {medicationResources.map((resource) => (
               <ResourceCard key={resource.name} resource={resource} />
@@ -61,11 +82,7 @@ export default async function VolunteerResourcesPage() {
   );
 }
 
-function ResourceCard({
-  resource,
-}: {
-  resource: (typeof volunteerResources)[number];
-}) {
+function ResourceCard({ resource }: { resource: VolunteerResource }) {
   return (
     <article className="grid gap-4 rounded-md bg-white p-5 shadow-soft">
       <div>
@@ -92,7 +109,9 @@ function ResourceCard({
       </dl>
 
       <div>
-        <p className="text-sm font-medium text-ink">Usually needed from the patient</p>
+        <p className="text-sm font-medium text-ink">
+          Usually needed from the patient
+        </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
           {resource.patientItems.map((item) => (
             <li key={item}>{item}</li>

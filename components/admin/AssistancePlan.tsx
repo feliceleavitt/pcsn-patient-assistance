@@ -1,3 +1,5 @@
+import { readPublishedCatalog } from "@/lib/catalog/store";
+import { catalogPrograms, withCatalogQuestions } from "@/lib/catalog/runtime";
 import {
   buildPlan,
   researchVersion,
@@ -46,8 +48,27 @@ function FactRow({ fact }: { fact: Fact }) {
 }
 
 /** Server component; no raw submission, SSN, document bytes or notes go to a client component. */
-export function AssistancePlan({ profile }: { profile: Profile }) {
-  const plan = buildPlan(profile);
+export async function AssistancePlan({
+  profile: originalProfile,
+}: {
+  profile: Profile;
+}) {
+  let catalog;
+  try {
+    catalog = await readPublishedCatalog();
+  } catch {
+    return (
+      <section role="alert" className="rounded-md bg-amber-50 p-5">
+        Assistance Plan unavailable while the published catalog cannot be
+        loaded. Existing patient details remain available below.
+      </section>
+    );
+  }
+  const profile = withCatalogQuestions(originalProfile, catalog.entries);
+  const plan = buildPlan(
+    profile,
+    catalogPrograms(catalog.entries, profile, catalog.version),
+  );
   const conflicts = Object.values(profile.facts).filter(
     (f) => f.state === "conflict",
   );
@@ -438,6 +459,19 @@ export function AssistancePlan({ profile }: { profile: Profile }) {
                   Volunteer review before applying
                 </summary>
                 <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6">
+                  {card.submissionInstructions ? (
+                    <li>
+                      <strong>Submission instructions: </strong>
+                      {card.submissionInstructions}
+                    </li>
+                  ) : null}
+                  {card.renewalDays !== undefined ? (
+                    <li>
+                      Renewal reminder: {card.renewalDays} days before the
+                      recorded benefit end date. Reminder scheduling is not yet
+                      enabled.
+                    </li>
+                  ) : null}
                   {card.reviews.map((review) => (
                     <li key={review}>{review}</li>
                   ))}
@@ -467,9 +501,10 @@ export function AssistancePlan({ profile }: { profile: Profile }) {
                   Research sources and unresolved rules
                 </summary>
                 <p className="mt-2">
-                  Draft mapping {researchVersion}, based on the PCSN
-                  cross-program field matrix and research report. Rules
-                  requiring review are not automated.
+                  Published catalog {catalog.version} · original mapping{" "}
+                  {researchVersion}, based on the PCSN cross-program field
+                  matrix and research report. Rules requiring review are not
+                  automated.
                 </p>
                 <ul className="mt-2 space-y-2">
                   {card.sources.map((source) => (

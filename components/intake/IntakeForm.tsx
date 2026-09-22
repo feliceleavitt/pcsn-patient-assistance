@@ -1,16 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { financialNeedOptions } from "@/lib/intake/needs";
+import { missingIntakeRequirements } from "@/lib/intake/requirements";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileUp, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AutocompleteField } from "@/components/ui/AutocompleteField";
 import { TextAreaField, TextField } from "@/components/ui/Field";
-import { arizonaTreatmentFacilities } from "@/lib/resources";
+
 import { MayoFinancialAssistanceSection } from "@/components/intake/MayoFinancialAssistanceSection";
 import type { IntakePayload, MayoFinancialAssistance } from "@/lib/types";
 
 type DocumentType =
+  | "utility_bill"
+  | "shutoff_notice"
+  | "proof_of_residence"
   | "photo_id"
   | "medical_bill"
   | "prior_authorization_denial"
@@ -39,9 +44,11 @@ const steps = [
   "Household",
   "Documents",
   "Consent",
+  "Review",
 ];
 
 const documentLabels: Record<DocumentType, string> = {
+  utility_bill: "Current utility bill", shutoff_notice: "Utility shutoff notice", proof_of_residence: "Proof of residence",
   insurance_card_front: "Insurance card, front",
   insurance_card_back: "Insurance card, back",
   photo_id: "Photo ID",
@@ -197,210 +204,7 @@ const cancerTypes = [
   "Not sure",
 ];
 
-const medications = [
-  "Abemaciclib (Verzenio)",
-  "Abiraterone (Zytiga)",
-  "Acalabrutinib (Calquence)",
-  "Adagrasib (Krazati)",
-  "Afatinib (Gilotrif)",
-  "Alectinib (Alecensa)",
-  "Alemtuzumab (Campath)",
-  "Alpelisib (Piqray)",
-  "Amivantamab (Rybrevant)",
-  "Anastrozole (Arimidex)",
-  "Apalutamide (Erleada)",
-  "Arsenic trioxide (Trisenox)",
-  "Asciminib (Scemblix)",
-  "Atezolizumab (Tecentriq)",
-  "Avapritinib (Ayvakit)",
-  "Avelumab (Bavencio)",
-  "Axitinib (Inlyta)",
-  "Azacitidine (Vidaza, Onureg)",
-  "Belantamab mafodotin (Blenrep)",
-  "Belzutifan (Welireg)",
-  "Bendamustine (Bendeka, Treanda)",
-  "Bevacizumab (Avastin)",
-  "Bicalutamide (Casodex)",
-  "Binimetinib (Mektovi)",
-  "Blinatumomab (Blincyto)",
-  "Bortezomib (Velcade)",
-  "Bosutinib (Bosulif)",
-  "Brentuximab vedotin (Adcetris)",
-  "Brexucabtagene autoleucel (Tecartus)",
-  "Brigatinib (Alunbrig)",
-  "Busulfan (Busulfex, Myleran)",
-  "Cabazitaxel (Jevtana)",
-  "Cabozantinib (Cabometyx, Cometriq)",
-  "Calaspargase pegol (Asparlas)",
-  "Capecitabine (Xeloda)",
-  "Capivasertib (Truqap)",
-  "Capmatinib (Tabrecta)",
-  "Carboplatin (Paraplatin)",
-  "Carfilzomib (Kyprolis)",
-  "Carmustine (BiCNU, Gliadel)",
-  "Cemiplimab (Libtayo)",
-  "Ceritinib (Zykadia)",
-  "Cetuximab (Erbitux)",
-  "Chlorambucil (Leukeran)",
-  "Cisplatin (Platinol)",
-  "Cladribine (Leustatin)",
-  "Cobimetinib (Cotellic)",
-  "Copanlisib (Aliqopa)",
-  "Crizotinib (Xalkori)",
-  "Cyclophosphamide (Cytoxan)",
-  "Cytarabine (Cytosar-U)",
-  "Dabrafenib (Tafinlar)",
-  "Dacomitinib (Vizimpro)",
-  "Daratumumab (Darzalex, Darzalex Faspro)",
-  "Darolutamide (Nubeqa)",
-  "Dasatinib (Sprycel)",
-  "Daunorubicin (Cerubidine)",
-  "Decitabine (Dacogen)",
-  "Degarelix (Firmagon)",
-  "Denosumab (Xgeva, Prolia)",
-  "Dinutuximab (Unituxin)",
-  "Docetaxel (Taxotere)",
-  "Dostarlimab (Jemperli)",
-  "Doxorubicin (Adriamycin, Doxil)",
-  "Durvalumab (Imfinzi)",
-  "Duvelisib (Copiktra)",
-  "Elacestrant (Orserdu)",
-  "Elotuzumab (Empliciti)",
-  "Enasidenib (Idhifa)",
-  "Encorafenib (Braftovi)",
-  "Enfortumab vedotin (Padcev)",
-  "Entrectinib (Rozlytrek)",
-  "Enzalutamide (Xtandi)",
-  "Epcoritamab (Epkinly)",
-  "Erdafitinib (Balversa)",
-  "Erlotinib (Tarceva)",
-  "Etoposide (Etopophos, Toposar)",
-  "Everolimus (Afinitor)",
-  "Exemestane (Aromasin)",
-  "Fam-trastuzumab deruxtecan (Enhertu)",
-  "Fedratinib (Inrebic)",
-  "Fludarabine (Fludara)",
-  "Fluorouracil / 5-FU (Adrucil)",
-  "Flutamide",
-  "Fulvestrant (Faslodex)",
-  "Futibatinib (Lytgobi)",
-  "Gefitinib (Iressa)",
-  "Gemcitabine (Gemzar)",
-  "Gemtuzumab ozogamicin (Mylotarg)",
-  "Gilteritinib (Xospata)",
-  "Glasdegib (Daurismo)",
-  "Goserelin (Zoladex)",
-  "Hydroxyurea (Hydrea)",
-  "Ibrutinib (Imbruvica)",
-  "Idarubicin (Idamycin)",
-  "Idelalisib (Zydelig)",
-  "Ifosfamide (Ifex)",
-  "Imatinib (Gleevec)",
-  "Infigratinib (Truseltiq)",
-  "Inotuzumab ozogamicin (Besponsa)",
-  "Interferon alfa-2b (Intron A)",
-  "Ipilimumab (Yervoy)",
-  "Irinotecan (Camptosar)",
-  "Isatuximab (Sarclisa)",
-  "Ivosidenib (Tibsovo)",
-  "Ixazomib (Ninlaro)",
-  "Lapatinib (Tykerb)",
-  "Larotrectinib (Vitrakvi)",
-  "Lanreotide (Somatuline Depot)",
-  "Lenalidomide (Revlimid)",
-  "Lenvatinib (Lenvima)",
-  "Letrozole (Femara)",
-  "Leucovorin",
-  "Leuprolide (Lupron Depot, Eligard, Camcevi)",
-  "Lisocabtagene maraleucel (Breyanzi)",
-  "Lorlatinib (Lorbrena)",
-  "Lutetium Lu 177 dotatate (Lutathera)",
-  "Lutetium Lu 177 vipivotide tetraxetan (Pluvicto)",
-  "Mechlorethamine (Valchlor)",
-  "Melphalan (Alkeran)",
-  "Mercaptopurine (Purinethol, Purixan)",
-  "Methotrexate (Trexall, Otrexup, Rasuvo)",
-  "Midostaurin (Rydapt)",
-  "Mirvetuximab soravtansine (Elahere)",
-  "Mitomycin (Mutamycin)",
-  "Mitoxantrone (Novantrone)",
-  "Nab-paclitaxel (Abraxane)",
-  "Naxitamab (Danyelza)",
-  "Neratinib (Nerlynx)",
-  "Nilotinib (Tasigna)",
-  "Nilutamide (Nilandron)",
-  "Niraparib (Zejula)",
-  "Nivolumab (Opdivo)",
-  "Nivolumab and relatlimab (Opdualag)",
-  "Obinutuzumab (Gazyva)",
-  "Ofatumumab (Arzerra)",
-  "Olaparib (Lynparza)",
-  "Osimertinib (Tagrisso)",
-  "Oxaliplatin (Eloxatin)",
-  "Paclitaxel (Taxol)",
-  "Palbociclib (Ibrance)",
-  "Pamidronate (Aredia)",
-  "Panitumumab (Vectibix)",
-  "Pazopanib (Votrient)",
-  "Pegaspargase (Oncaspar)",
-  "Pemetrexed (Alimta)",
-  "Pembrolizumab (Keytruda)",
-  "Pertuzumab (Perjeta)",
-  "Pirtobrutinib (Jaypirca)",
-  "Polatuzumab vedotin (Polivy)",
-  "Ponatinib (Iclusig)",
-  "Pralsetinib (Gavreto)",
-  "Procarbazine (Matulane)",
-  "Radium Ra 223 dichloride (Xofigo)",
-  "Ramucirumab (Cyramza)",
-  "Regorafenib (Stivarga)",
-  "Relugolix (Orgovyx)",
-  "Repotrectinib (Augtyro)",
-  "Ribociclib (Kisqali)",
-  "Ripretinib (Qinlock)",
-  "Rituximab (Rituxan, Truxima, Ruxience, Riabni)",
-  "Romidepsin (Istodax)",
-  "Rucaparib (Rubraca)",
-  "Ruxolitinib (Jakafi)",
-  "Sacituzumab govitecan (Trodelvy)",
-  "Selinexor (Xpovio)",
-  "Selpercatinib (Retevmo)",
-  "Selumetinib (Koselugo)",
-  "Sonidegib (Odomzo)",
-  "Sorafenib (Nexavar)",
-  "Sotorasib (Lumakras)",
-  "Sunitinib (Sutent)",
-  "Talazoparib (Talzenna)",
-  "Tamoxifen (Soltamox)",
-  "Tazemetostat (Tazverik)",
-  "Temozolomide (Temodar)",
-  "Temsirolimus (Torisel)",
-  "Tepotinib (Tepmetko)",
-  "Thioguanine (Tabloid)",
-  "Tisagenlecleucel (Kymriah)",
-  "Tisotumab vedotin (Tivdak)",
-  "Topotecan (Hycamtin)",
-  "Toripalimab (Loqtorzi)",
-  "Tovorafenib (Ojemda)",
-  "Trametinib (Mekinist)",
-  "Trastuzumab (Herceptin, Ogivri, Kanjinti, Trazimera)",
-  "Trastuzumab emtansine (Kadcyla)",
-  "Tretinoin / ATRA (Vesanoid)",
-  "Trifluridine and tipiracil (Lonsurf)",
-  "Triptorelin (Trelstar)",
-  "Tucatinib (Tukysa)",
-  "Vandetanib (Caprelsa)",
-  "Venetoclax (Venclexta)",
-  "Vinblastine (Velban)",
-  "Vincristine (Oncovin, Vincasar PFS)",
-  "Vinorelbine (Navelbine)",
-  "Vismodegib (Erivedge)",
-  "Vorasidenib (Voranigo)",
-  "Zanubrutinib (Brukinsa)",
-  "Ziv-aflibercept (Zaltrap)",
-  "Zoledronic acid (Zometa, Reclast)",
-  "Zolbetuximab (Vyloy)",
-];
+
 
 const employmentOptions = [
   "Employed full-time",
@@ -535,12 +339,16 @@ const initialState: IntakePayload = {
 };
 
 type IntakeFormProps = {
+  catalogFacilities: string[];
+  catalogDrugs: string[];
+  catalogQuestions: Record<string,{name:string;help:string}>;
+  catalogDocumentHelp: Record<string,string>;
   initialDraft?: IntakePayload | null;
   initialStep?: number;
   draftUpdatedAt?: string | null;
 };
 
-export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: IntakeFormProps) {
+export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, catalogDocumentHelp, initialDraft, initialStep = 0, draftUpdatedAt }: IntakeFormProps) {
   const router = useRouter();
   const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 0), steps.length - 1));
   const [form, setForm] = useState<IntakePayload>(() => initialDraft ? {
@@ -553,7 +361,43 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
     household: { ...initialState.household, ...initialDraft.household },
     consent: { ...initialState.consent, ...initialDraft.consent },
   } : initialState);
-  const [files, setFiles] = useState<Partial<Record<DocumentType, File[]>>>({});
+  const [savedDocuments, setSavedDocuments] = useState<Array<{id:string;original_filename:string;document_type:string}>>([]);
+  const [uploading, setUploading] = useState(false);
+  const [documentsLoaded, setDocumentsLoaded] = useState(false);
+  const [documentError, setDocumentError] = useState("");
+  useEffect(() => {
+    let active = true;
+    fetch("/api/intake/documents").then(async response => {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      if (active) { setSavedDocuments(result.documents); setDocumentsLoaded(true); }
+    }).catch(() => { if (active) setDocumentError("Saved documents could not be loaded. Reload before submitting so no uploads are missed."); });
+    return () => { active = false; };
+  }, []);
+  async function removeDocument(id: string) {
+    setUploading(true); setDocumentError("");
+    try {
+      const response = await fetch(`/api/intake/documents?id=${encodeURIComponent(id)}`, {method:"DELETE"});
+      if (!response.ok) throw new Error("Could not remove the document. Please reload and try again.");
+      setSavedDocuments(current => current.filter(document => document.id !== id));
+    } catch (error) { setDocumentError(error instanceof Error ? error.message : "Unable to remove document."); }
+    finally { setUploading(false); }
+  }
+  async function uploadDocuments(documentType: DocumentType, selected: File[]) {
+    setUploading(true); setDocumentError("");
+    try {
+      if (!(await saveDraft())) throw new Error("Save your permission and answers before uploading.");
+      if (selected.some(file => file.size > 4194304)) throw new Error("Please choose files smaller than 4 MB each.");
+      for (const file of selected) {
+        const body = new FormData(); body.append("file", file); body.append("documentType", documentType);
+        const response = await fetch("/api/intake/documents", {method:"POST", body});
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Upload failed. Please retry.");
+        setSavedDocuments(current => [...current, result.document]);
+      }
+    } catch (error) { setDocumentError(error instanceof Error ? error.message : "Upload failed. Please retry."); }
+    finally { setUploading(false); }
+  }
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -571,6 +415,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
     () =>
       [
         ...baseDocumentTypes,
+        ...(form.household.financialNeeds?.includes("electricity_gas") ? (["utility_bill", "shutoff_notice", "proof_of_residence"] as DocumentType[]) : []),
         ...(form.insurance.coverageDenied === "yes"
           ? ([
               "prior_authorization_denial",
@@ -581,7 +426,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
             ] as DocumentType[])
           : []),
       ].filter((value, index, all) => all.indexOf(value) === index),
-    [form.insurance.coverageDenied],
+    [form.insurance.coverageDenied, form.household.financialNeeds],
   );
   const progress = useMemo(() => ((step + 1) / steps.length) * 100, [step]);
 
@@ -671,38 +516,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
     return Boolean(value?.trim());
   }
 
-  function findMissingRequiredStep() {
-    const requiredByStep: Array<[number, boolean, string]> = [
-      [1, hasText(form.patient.firstName), "Patient first name is required."],
-      [1, hasText(form.patient.lastName), "Patient last name is required."],
-      [1, hasText(form.patient.dateOfBirth), "Patient date of birth is required."],
-      [1, /^\d{9}$/.test(form.patient.socialSecurityNumber.replace(/\D/g, "")), "A valid 9-digit Social Security number is required."],
-      [1, hasText(form.patient.phone), "Patient phone number is required."],
-      [1, hasText(form.patient.email), "Patient email is required."],
-      [1, hasText(form.patient.addressLine1), "Patient address is required."],
-      [1, hasText(form.patient.city), "Patient city is required."],
-      [1, hasText(form.patient.state), "Patient state is required."],
-      [1, hasText(form.patient.postalCode), "Patient postal code is required."],
-      [1, hasText(form.patient.employmentStatus), "Patient employment status is required."],
-      [3, hasText(form.diagnosis.cancerType), "Cancer type is required."],
-      [3, hasText(form.diagnosis.diagnosisDate), "Diagnosis date is required."],
-      [3, (form.diagnosis.treatments ?? []).some((item) => hasText(item.name)), "At least one treatment is required."],
-      [3, !isManufacturer || (form.diagnosis.medications ?? []).some(hasText), "At least one medication is required for medication assistance."],
-      [4, hasText(form.provider.clinicName), "Clinic name is required."],
-      [4, hasText(form.provider.providerName), "Provider name is required."],
-      [4, hasText(form.provider.phone), "Provider phone number is required."],
-      [4, hasText(form.provider.addressLine1), "Provider address is required."],
-      [4, hasText(form.provider.city), "Provider city is required."],
-      [4, hasText(form.provider.state), "Provider state is required."],
-      [4, hasText(form.provider.postalCode), "Provider postal code is required."],
-      [3, !needsMayoApplication || hasText(form.hospital.mayoFinancialAssistance?.applicantMiddleName), "Mayo applicant middle name or 'not applicable' is required."],
-      [3, !needsMayoApplication || hasText(form.hospital.mayoFinancialAssistance?.assistanceNeed), "Please describe the need for Mayo financial assistance."],
-      [3, !needsMayoApplication || Boolean(form.hospital.mayoFinancialAssistance?.certificationAccepted), "Mayo certification is required."],
-      [6, form.household.householdSize > 0, "Household size is required."],
-    ];
-
-    return requiredByStep.find(([, isComplete]) => !isComplete);
-  }
+  function missingRequiredItems() { return missingIntakeRequirements(form, isManufacturer, needsMayoApplication); }
 
   async function saveDraft(resumeStep = step, quiet = false) {
     if (!form.consent.volunteerAccessConsent) {
@@ -728,7 +542,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
         | null;
 
       if (!response.ok) {
-        if (!quiet) setDraftMessage(
+        setDraftMessage(
           result?.error ??
             "We could not save your progress. Please try again.",
         );
@@ -738,9 +552,10 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
       const savedAt = result?.updatedAt
         ? new Date(result.updatedAt).toLocaleString()
         : new Date().toLocaleString();
-      if (!quiet) setDraftMessage(`Progress saved ${savedAt}. You can sign back in later to continue.`);
+      setDraftMessage(`Progress saved ${savedAt}. You can sign back in later to continue.`);
+      return true;
     } catch {
-      if (!quiet) setDraftMessage(
+      setDraftMessage(
         "We could not save your progress. Please check your connection and try again.",
       );
     } finally {
@@ -750,12 +565,17 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
 
   async function continueToNextStep() {
     const nextStep = Math.min(step + 1, steps.length - 1);
-    if (form.consent.volunteerAccessConsent) await saveDraft(nextStep, true);
-    setStep(nextStep);
+    const missing = missingRequiredItems().filter(([section]) => section === step || section === 0);
+    if (missing.length) {
+      setSubmitError(missing.map(([, , message]) => message).join(" "));
+      return;
+    }
+    if (await saveDraft(nextStep, true)) setStep(nextStep);
   }
 
   async function submit() {
-    const missing = findMissingRequiredStep();
+    if (uploading || !documentsLoaded) { setSubmitError("Please wait for saved documents to finish loading or uploading."); return; }
+    const missing = missingRequiredItems()[0];
     if (missing) {
       const [missingStep, , message] = missing;
       setStep(missingStep);
@@ -823,11 +643,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
           },
         }),
       );
-      Object.entries(files).forEach(([documentType, selectedFiles]) => {
-        selectedFiles?.forEach((file) =>
-          body.append(`document:${documentType}`, file),
-        );
-      });
+      body.append("draftDocumentIds", JSON.stringify(savedDocuments.map(document => document.id)));
       const response = await fetch("/api/intake", { method: "POST", body });
 
       if (response.ok) {
@@ -856,8 +672,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
       <div className="rounded-md border border-pine/20 bg-white p-4 text-sm leading-6 text-slate-700 shadow-soft">
         <p>
           You can save this application and come back later from the same
-          account. Documents are not saved until you submit, so please select
-          your files again if you leave and return.
+          account. Documents are encrypted and saved as soon as each upload succeeds. Wait for the saved confirmation before leaving.
         </p>
         <p className="mt-2">
           <span className="font-semibold text-coral">*</span> Required field
@@ -866,6 +681,14 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
           <p className="mt-2 font-semibold text-pine">{draftMessage}</p>
         ) : null}
       </div>
+
+      <details className="rounded-md border border-slate-200 bg-white p-4" open={step === 9}>
+        <summary className="cursor-pointer font-semibold">Application checklist · {missingRequiredItems().length} required items remaining</summary>
+        <ul className="mt-3 grid gap-2">{steps.slice(0, 9).map((name, index) => {
+          const missing = missingRequiredItems().filter(([section]) => section === index);
+          return <li key={name}><button type="button" className="text-left text-sm underline" onClick={() => { setStep(index); setSubmitError(""); }}>{name}: {missing.length ? `${missing.length} items to finish` : "Required items complete"}</button>{missing.length ? <ul className="ml-5 list-disc text-sm text-slate-600">{missing.map(([, , message]) => <li key={message}>{message}</li>)}</ul> : null}</li>;
+        })}</ul>
+      </details>
 
       <div className="grid gap-3">
         <div className="flex items-center justify-between text-sm">
@@ -879,8 +702,18 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
         </div>
       </div>
 
+      {step === 9 ? <section className="grid gap-3 rounded-md bg-white p-5"><h2 className="text-xl font-semibold">Review before sending</h2><p>Check your answers using the section links above. Your request will be shared with PCSN volunteers when you submit.</p><dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Patient</dt><dd>{form.patient.firstName} {form.patient.lastName}</dd></div><div><dt className="font-semibold">Contact</dt><dd>{form.patient.email} · {form.patient.phone}</dd></div><div><dt className="font-semibold">Treatment facilities</dt><dd>{form.hospital.treatmentFacilities?.join(", ") || "None entered"}</dd></div><div><dt className="font-semibold">Medications</dt><dd>{form.diagnosis.medications?.filter(Boolean).join(", ") || "None entered"}</dd></div><div><dt className="font-semibold">Selected documents</dt><dd>{savedDocuments.length} saved files will be included with this request.</dd></div></dl><p className="text-sm">Submitting a request does not guarantee eligibility or funding.</p></section> : null}
+
       {step === 0 ? (
         <div className="grid gap-3">
+          <fieldset className="grid gap-3 rounded-md bg-white p-4"><legend className="font-semibold">Are you having trouble paying for any of these right now?</legend><p className="text-sm">Choose all that apply. It is okay if you are not sure yet.</p>
+            {financialNeedOptions.map(([id,label]) => <label key={id} className="flex items-center gap-3 text-sm"><input type="checkbox" checked={form.household.financialNeeds?.includes(id) ?? false} onChange={event => updateSection("household", {financialNeeds:event.target.checked ? [...(form.household.financialNeeds ?? []),id] : (form.household.financialNeeds ?? []).filter(value => value !== id)})}/>{label}</label>)}
+          </fieldset>
+          {form.household.financialNeeds?.includes("electricity_gas") ? <fieldset className="grid gap-3 rounded-md bg-white p-4"><legend className="font-semibold">Electricity or gas</legend><p className="text-sm">Leave details blank if you do not know them. A volunteer can help.</p>
+            {([["utilityProvider","Utility company"],["accountHolder","Name on the utility account"],["serviceAddress","Address where you receive service"]] as const).map(([key,label]) => <TextField key={key} label={label} value={form.household.utilities?.[key] ?? ""} help="Look at the first page of a recent utility bill, or call your utility company and ask for a copy. You can upload the bill in the Documents section." onChange={event => updateSection("household",{utilities:{...form.household.utilities,[key]:event.target.value}})}/>)}
+            {([["shutoff","Is your service off, or have you received a shutoff notice?"],["utilitiesInRent","Are utilities included in your rent?"]] as const).map(([key,label]) => <label key={key} className="grid gap-2 text-sm">{label}<select className="h-11 rounded border p-2" value={form.household.utilities?.[key] ?? ""} onChange={event => updateSection("household",{utilities:{...form.household.utilities,[key]:event.target.value}})}><option value="">Choose an answer</option><option value="yes">Yes</option><option value="no">No</option><option value="not_sure">I am not sure</option></select></label>)}
+          </fieldset> : null}
+          <p className="font-semibold">For medical bills and medications, which kind of help would you like?</p>
           {[
             ["manufacturer", "Help paying for medications"],
             ["hospital", "Help with medical bills"],
@@ -901,17 +734,17 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
 
       {step === 1 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <TextField required label="First name" value={form.patient.firstName} onChange={(e) => updateSection("patient", { firstName: e.target.value })} />
-          <TextField required label="Last name" value={form.patient.lastName} onChange={(e) => updateSection("patient", { lastName: e.target.value })} />
-          <TextField required label="Date of birth" type="date" value={form.patient.dateOfBirth} onChange={(e) => updateSection("patient", { dateOfBirth: e.target.value })} />
-          <div><TextField required label="Social Security number" type="password" inputMode="numeric" autoComplete="off" maxLength={11} placeholder="XXX-XX-XXXX" value={form.patient.socialSecurityNumber} onChange={(e) => updateSection("patient", { socialSecurityNumber: e.target.value.replace(/[^\d-]/g, "") })} /><p className="mt-1 text-xs leading-5 text-slate-500">Required by many assistance programs. It is encrypted when submitted and is not included in saved drafts.</p></div>
-          <TextField required label="Phone" value={form.patient.phone} onChange={(e) => updateSection("patient", { phone: e.target.value })} />
-          <TextField required label="Email" type="email" value={form.patient.email} onChange={(e) => updateSection("patient", { email: e.target.value })} />
-          <TextField required label="Address line 1" value={form.patient.addressLine1} onChange={(e) => updateSection("patient", { addressLine1: e.target.value })} />
+          <TextField required label={catalogQuestions["firstName"]?.name ?? "First name"} help={catalogQuestions["firstName"]?.help} value={form.patient.firstName} onChange={(e) => updateSection("patient", { firstName: e.target.value })} />
+          <TextField required label={catalogQuestions["lastName"]?.name ?? "Last name"} help={catalogQuestions["lastName"]?.help} value={form.patient.lastName} onChange={(e) => updateSection("patient", { lastName: e.target.value })} />
+          <TextField required label={catalogQuestions["dob"]?.name ?? "Date of birth"} help={catalogQuestions["dob"]?.help} type="date" value={form.patient.dateOfBirth} onChange={(e) => updateSection("patient", { dateOfBirth: e.target.value })} />
+          <p className="text-sm text-slate-600 md:col-span-2">You do not need to provide a Social Security number to request help from PCSN. If a particular program needs it later, a volunteer will explain why and how to provide it securely.</p>
+          <TextField required label={catalogQuestions["phone"]?.name ?? "Phone"} help={catalogQuestions["phone"]?.help} value={form.patient.phone} onChange={(e) => updateSection("patient", { phone: e.target.value })} />
+          <TextField required label={catalogQuestions["email"]?.name ?? "Email"} help={catalogQuestions["email"]?.help} type="email" value={form.patient.email} onChange={(e) => updateSection("patient", { email: e.target.value })} />
+          <TextField required label={catalogQuestions["address"]?.name ?? "Address line 1"} help={catalogQuestions["address"]?.help} value={form.patient.addressLine1} onChange={(e) => updateSection("patient", { addressLine1: e.target.value })} />
           <TextField label="Address line 2" value={form.patient.addressLine2} onChange={(e) => updateSection("patient", { addressLine2: e.target.value })} />
-          <TextField required label="City" value={form.patient.city} onChange={(e) => updateSection("patient", { city: e.target.value })} />
-          <TextField required label="State" value={form.patient.state} onChange={(e) => updateSection("patient", { state: e.target.value })} />
-          <TextField required label="Postal code" value={form.patient.postalCode} onChange={(e) => updateSection("patient", { postalCode: e.target.value })} />
+          <TextField required label={catalogQuestions["city"]?.name ?? "City"} help={catalogQuestions["city"]?.help} value={form.patient.city} onChange={(e) => updateSection("patient", { city: e.target.value })} />
+          <TextField required label={catalogQuestions["state"]?.name ?? "State"} help={catalogQuestions["state"]?.help} value={form.patient.state} onChange={(e) => updateSection("patient", { state: e.target.value })} />
+          <TextField required label={catalogQuestions["zip"]?.name ?? "Postal code"} help={catalogQuestions["zip"]?.help} value={form.patient.postalCode} onChange={(e) => updateSection("patient", { postalCode: e.target.value })} />
           <label className="grid gap-2 text-sm">
             <span className="font-medium text-ink">
               Employment status<span className="ml-1 text-coral">*</span>
@@ -982,7 +815,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
           <label className="grid gap-2 text-sm"><span className="font-medium text-ink">Cancer stage</span><select className="h-11 rounded-md border border-slate-300 bg-white px-3" value={form.diagnosis.cancerStage ?? ""} onChange={(e) => updateSection("diagnosis", { cancerStage: e.target.value })}><option value="">Select if known</option>{["Stage 0","Stage I","Stage II","Stage III","Stage IV","Recurrent","Not sure"].map((value) => <option key={value}>{value}</option>)}</select></label>
           <TextField required label="Approximate diagnosis month" type="month" value={form.diagnosis.diagnosisDate} onChange={(e) => updateSection("diagnosis", { diagnosisDate: e.target.value })} />
           <div className="grid gap-3 md:col-span-2"><h3 className="font-semibold">Treatments</h3><p className="text-sm text-slate-600">Add each treatment separately. The month can be approximate.</p>{(form.diagnosis.treatments ?? []).map((treatment, index) => <div key={index} className="grid gap-3 rounded-md border border-slate-200 p-4 md:grid-cols-2"><TextField label={`Treatment ${index + 1}`} placeholder="Example: chemotherapy, radiation, surgery" value={treatment.name} onChange={(e) => updateTreatment(index, { name: e.target.value })} /><TextField label="Approximate start month" type="month" value={treatment.startDate ?? ""} onChange={(e) => updateTreatment(index, { startDate: e.target.value })} /></div>)}<Button variant="secondary" onClick={() => updateSection("diagnosis", { treatments: [...(form.diagnosis.treatments ?? []), { name: "", startDate: "" }] })}><Plus size={16} />Add treatment</Button></div>
-          {isManufacturer ? <div className="grid gap-3 md:col-span-2"><h3 className="font-semibold">Medication list</h3><p className="text-sm text-slate-600">List all cancer-related medications, including lower-cost medications. You may also upload photos of a medication list in Documents.</p>{(form.diagnosis.medications ?? []).map((medication, index) => <AutocompleteField key={index} label={`Medication ${index + 1}`} value={medication} options={medications} onChange={(value) => updateMedication(index, value)} />)}<Button variant="secondary" onClick={() => updateSection("diagnosis", { medications: [...(form.diagnosis.medications ?? []), ""] })}><Plus size={16} />Add medication</Button><TextField label="Preferred pharmacy" placeholder="Pharmacy name and location" value={form.diagnosis.pharmacyName ?? ""} onChange={(e) => updateSection("diagnosis", { pharmacyName: e.target.value })} /></div> : null}
+          {isManufacturer ? <div className="grid gap-3 md:col-span-2"><h3 className="font-semibold">Medication list</h3><p className="text-sm text-slate-600">List all cancer-related medications, including lower-cost medications. You may also upload photos of a medication list in Documents.</p>{(form.diagnosis.medications ?? []).map((medication, index) => <AutocompleteField key={index} label={`Medication ${index + 1}`} value={medication} options={catalogDrugs} onChange={(value) => updateMedication(index, value)} />)}<Button variant="secondary" onClick={() => updateSection("diagnosis", { medications: [...(form.diagnosis.medications ?? []), ""] })}><Plus size={16} />Add medication</Button><TextField label="Preferred pharmacy" placeholder="Pharmacy name and location" value={form.diagnosis.pharmacyName ?? ""} onChange={(e) => updateSection("diagnosis", { pharmacyName: e.target.value })} /></div> : null}
           <div className="grid gap-3 md:col-span-2">
             <div>
               <h3 className="font-semibold">Arizona hospitals or cancer centers</h3>
@@ -992,7 +825,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              {arizonaTreatmentFacilities.map((facility) => (
+              {Array.from(new Set([...catalogFacilities, ...(form.hospital.treatmentFacilities ?? [])])).map((facility) => (
                 <label
                   key={facility}
                   className="flex items-start gap-3 rounded-md border border-slate-300 bg-white p-4 text-sm"
@@ -1015,22 +848,22 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
       ) : null}
 
       {step === 4 ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2"><p className="text-sm text-slate-600 md:col-span-2">If you do not know your provider’s phone, address, fax, or NPI, leave it blank. A volunteer can help find it.</p>
           <TextField required label="Clinic name" value={form.provider.clinicName} onChange={(e) => updateSection("provider", { clinicName: e.target.value })} />
           <TextField required label="Prescriber/provider name" value={form.provider.providerName} onChange={(e) => updateSection("provider", { providerName: e.target.value })} />
           <TextField label="NPI (if known)" value={form.provider.npi} onChange={(e) => updateSection("provider", { npi: e.target.value })} />
-          <TextField required label="Phone" value={form.provider.phone} onChange={(e) => updateSection("provider", { phone: e.target.value })} />
+          <TextField label="Phone (if known)" value={form.provider.phone} onChange={(e) => updateSection("provider", { phone: e.target.value })} />
           <TextField label="Fax" value={form.provider.fax} onChange={(e) => updateSection("provider", { fax: e.target.value })} />
-          <TextField required label="Address line 1" value={form.provider.addressLine1} onChange={(e) => updateSection("provider", { addressLine1: e.target.value })} />
+          <TextField label="Address line 1 (if known)" value={form.provider.addressLine1} onChange={(e) => updateSection("provider", { addressLine1: e.target.value })} />
           <TextField label="Address line 2" value={form.provider.addressLine2} onChange={(e) => updateSection("provider", { addressLine2: e.target.value })} />
-          <TextField required label="City" value={form.provider.city} onChange={(e) => updateSection("provider", { city: e.target.value })} />
-          <TextField required label="State" value={form.provider.state} onChange={(e) => updateSection("provider", { state: e.target.value })} />
-          <TextField required label="Postal code" value={form.provider.postalCode} onChange={(e) => updateSection("provider", { postalCode: e.target.value })} />
+          <TextField label="City (if known)" value={form.provider.city} onChange={(e) => updateSection("provider", { city: e.target.value })} />
+          <TextField label="State (if known)" value={form.provider.state} onChange={(e) => updateSection("provider", { state: e.target.value })} />
+          <TextField label="Postal code (if known)" value={form.provider.postalCode} onChange={(e) => updateSection("provider", { postalCode: e.target.value })} />
         </div>
       ) : null}
 
       {step === 5 ? (
-        <div className="grid gap-4">
+        <div className="grid gap-4"><p className="text-sm text-slate-600">If you do not know an insurance identifier, leave it blank. You can upload your insurance card or ask a volunteer for help.</p>
           <div className="grid gap-3 md:grid-cols-2">
             {[
               ["hasInsurance", "Patient currently has insurance"],
@@ -1048,22 +881,22 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
           </div>
           {form.insurance.hasMedicalInsurance ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField required label="Health insurance company" value={form.insurance.medicalCarrier} onChange={(e) => updateSection("insurance", { medicalCarrier: e.target.value })} />
+              <TextField label="Health insurance company" value={form.insurance.medicalCarrier} onChange={(e) => updateSection("insurance", { medicalCarrier: e.target.value })} />
               <TextField label="Health insurance policy ID" value={form.insurance.medicalPolicyId} onChange={(e) => updateSection("insurance", { medicalPolicyId: e.target.value })} />
-              <TextField required label="Health insurance group ID" value={form.insurance.medicalGroupId} onChange={(e) => updateSection("insurance", { medicalGroupId: e.target.value })} />
-              <TextField required label="Health insurance member ID" value={form.insurance.medicalMemberId} onChange={(e) => updateSection("insurance", { medicalMemberId: e.target.value })} />
+              <TextField label="Health insurance group ID" value={form.insurance.medicalGroupId} onChange={(e) => updateSection("insurance", { medicalGroupId: e.target.value })} />
+              <TextField label="Health insurance member ID" value={form.insurance.medicalMemberId} onChange={(e) => updateSection("insurance", { medicalMemberId: e.target.value })} />
               <TextField label="Health insurance PCN" value={form.insurance.medicalPcn ?? ""} onChange={(e) => updateSection("insurance", { medicalPcn: e.target.value })} />
-              <TextField required label="Policy holder name" value={form.insurance.medicalPolicyHolder ?? ""} onChange={(e) => updateSection("insurance", { medicalPolicyHolder: e.target.value })} />
+              <TextField label="Policy holder name" value={form.insurance.medicalPolicyHolder ?? ""} onChange={(e) => updateSection("insurance", { medicalPolicyHolder: e.target.value })} />
             </div>
           ) : null}
           {form.insurance.hasPharmacyInsurance ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField required label="Prescription insurance company" value={form.insurance.pharmacyCarrier} onChange={(e) => updateSection("insurance", { pharmacyCarrier: e.target.value })} />
+              <TextField label="Prescription insurance company" value={form.insurance.pharmacyCarrier} onChange={(e) => updateSection("insurance", { pharmacyCarrier: e.target.value })} />
               <TextField label="Prescription insurance policy ID" value={form.insurance.pharmacyPolicyId} onChange={(e) => updateSection("insurance", { pharmacyPolicyId: e.target.value })} />
-              <TextField required label="Prescription insurance group ID" value={form.insurance.pharmacyGroupId} onChange={(e) => updateSection("insurance", { pharmacyGroupId: e.target.value })} />
-              <TextField required label="Prescription insurance member ID" value={form.insurance.pharmacyMemberId} onChange={(e) => updateSection("insurance", { pharmacyMemberId: e.target.value })} />
-              <TextField required label="Prescription insurance PCN" value={form.insurance.pharmacyPcn ?? ""} onChange={(e) => updateSection("insurance", { pharmacyPcn: e.target.value })} />
-              <TextField required label="Policy holder name" value={form.insurance.pharmacyPolicyHolder ?? ""} onChange={(e) => updateSection("insurance", { pharmacyPolicyHolder: e.target.value })} />
+              <TextField label="Prescription insurance group ID" value={form.insurance.pharmacyGroupId} onChange={(e) => updateSection("insurance", { pharmacyGroupId: e.target.value })} />
+              <TextField label="Prescription insurance member ID" value={form.insurance.pharmacyMemberId} onChange={(e) => updateSection("insurance", { pharmacyMemberId: e.target.value })} />
+              <TextField label="Prescription insurance PCN" value={form.insurance.pharmacyPcn ?? ""} onChange={(e) => updateSection("insurance", { pharmacyPcn: e.target.value })} />
+              <TextField label="Policy holder name" value={form.insurance.pharmacyPolicyHolder ?? ""} onChange={(e) => updateSection("insurance", { pharmacyPolicyHolder: e.target.value })} />
             </div>
           ) : null}
           {isManufacturer ? (
@@ -1144,7 +977,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
                 <div className="grid gap-4 md:grid-cols-2">
                   <TextField required label="Name" value={displayMember.name} disabled={isPatientMember} onChange={(e) => updateMember(index, { name: e.target.value })} />
                   <TextField required label="Relationship" value={displayMember.relationship} disabled={isPatientMember} onChange={(e) => updateMember(index, { relationship: e.target.value })} />
-                  <TextField required label="Age" type="number" value={displayMember.age} onChange={(e) => updateMember(index, { age: Number(e.target.value) })} />
+                  <TextField required label="Age" type="number" value={displayMember.age} onChange={(e) => updateMember(index, { age: Number(e.target.value), isAdult: Number(e.target.value) >= 18 })} />
                   <label className="flex items-center gap-3 text-sm">
                     <input type="checkbox" checked={member.isAdult} onChange={(e) => updateMember(index, { isAdult: e.target.checked })} />
                     Adult household member
@@ -1208,13 +1041,14 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
         <div className="grid gap-4 md:grid-cols-2">
           {visibleDocumentTypes.map((documentType) => (
             <label key={documentType} className="grid min-h-40 cursor-pointer place-items-center rounded-md border border-dashed border-slate-400 bg-white p-5 text-center">
-              <input className="sr-only" type="file" multiple onChange={(e) => setFiles((current) => ({ ...current, [documentType]: Array.from(e.target.files ?? []) }))} />
+              <input className="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple disabled={uploading || !documentsLoaded || submitting} onChange={(e) => { void uploadDocuments(documentType, Array.from(e.target.files ?? [])); e.target.value = ""; }} />
               <span className="grid gap-2">
                 <FileUp className="mx-auto text-pine" />
                 <span className="font-medium">{documentLabels[documentType]}</span>
+                {catalogDocumentHelp[documentType] ? <details><summary className="cursor-pointer text-pine underline">How do I find this document?</summary><p className="whitespace-pre-line">{catalogDocumentHelp[documentType]}</p></details> : null}
                 <span className="text-sm text-slate-500">
-                  {files[documentType]?.length
-                    ? `${files[documentType]?.length} file(s) selected`
+                  {savedDocuments.filter(d => d.document_type === documentType).length
+                    ? `${savedDocuments.filter(d => d.document_type === documentType).length} file(s) saved`
                     : "Upload PDF, JPG, or PNG"}
                 </span>
               </span>
@@ -1222,6 +1056,10 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
           ))}
         </div>
       ) : null}
+
+      {uploading ? <p role="status">Saving document securely. Please keep this page open.</p> : null}
+      {documentError ? <p role="alert" className="text-red-700">{documentError}</p> : null}
+      {step === 7 || step === 9 ? <ul className="text-sm">{savedDocuments.map(document => <li key={document.id}>{document.original_filename} — Saved <button type="button" className="ml-2 underline" disabled={uploading || submitting} onClick={() => void removeDocument(document.id)}>Remove</button></li>)}</ul> : null}
 
       {step === 8 ? (
         <div className="grid gap-4">
@@ -1269,7 +1107,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
         </div>
       ) : null}
 
-      <label className="flex items-start gap-3 rounded-md border border-pine/30 bg-pine/5 p-4 text-sm leading-6">
+      {step === 0 ? <label className="flex items-start gap-3 rounded-md border border-pine/30 bg-pine/5 p-4 text-sm leading-6">
         <input
           className="mt-1"
           type="checkbox"
@@ -1286,7 +1124,7 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
           and I give permission for volunteers to contact me to offer assistance
           with my application.<span className="ml-1 text-coral">*</span>
         </span>
-      </label>
+      </label> : <p className="text-sm text-slate-600">Volunteer access and contact: {form.consent.volunteerAccessConsent ? "Permission given" : "Not yet given"}. <button type="button" className="underline" onClick={() => setStep(0)}>Review permission</button></p>}
 
       <div className="flex items-center justify-between gap-3">
         <Button variant="secondary" disabled={step === 0} onClick={() => setStep((current) => Math.max(current - 1, 0))}>
@@ -1295,25 +1133,18 @@ export function IntakeForm({ initialDraft, initialStep = 0, draftUpdatedAt }: In
         <div className="flex flex-wrap justify-end gap-3">
           <Button
             variant="secondary"
-            disabled={savingDraft || submitting}
+            disabled={savingDraft || submitting || uploading}
             onClick={() => void saveDraft()}
           >
             {savingDraft ? "Saving..." : "Save and finish later"}
           </Button>
           {step < steps.length - 1 ? (
-            <Button onClick={() => void continueToNextStep()} disabled={savingDraft}>
+            <Button onClick={() => void continueToNextStep()} disabled={savingDraft || uploading}>
               Continue
             </Button>
           ) : (
             <Button
-              disabled={
-                submitting ||
-                !form.consent.volunteerAccessConsent ||
-                !form.consent.releaseMedicalFinancial ||
-                !form.consent.contactPermission ||
-                !form.consent.noGuaranteeAcknowledgment ||
-                !form.consent.signature
-              }
+              disabled={submitting || savingDraft || uploading || !documentsLoaded}
               onClick={submit}
             >
               {submitting ? "Submitting..." : "Submit application"}

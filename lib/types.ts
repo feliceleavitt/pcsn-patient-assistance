@@ -116,6 +116,8 @@ export type IntakePayload = {
     eobAvailable: boolean;
   };
   household: {
+    financialNeeds?: string[];
+    utilities?: { utilityProvider?: string; accountHolder?: string; serviceAddress?: string; shutoff?: string; utilitiesInRent?: string };
     monthlyIncome: number | string;
     annualIncome: number | string;
     householdSize: number;

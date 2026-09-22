@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PortalIntroduction } from "@/components/patient/PortalIntroduction";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -66,6 +67,7 @@ export default function PatientLoginPage() {
           </p>
         </div>
 
+            <PortalIntroduction />
         <div className="grid grid-cols-2 rounded-md bg-mist p-1 text-sm font-semibold">
           <button
             className={`h-10 rounded ${mode === "login" ? "bg-white text-pine shadow-sm" : "text-slate-600"}`}

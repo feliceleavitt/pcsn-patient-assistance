@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { householdAgeLabel } from "@/lib/household";
 import { AssistancePlan } from "@/components/admin/AssistancePlan";
 import { adaptSubmission } from "@/lib/assistance/profile";
 import { notFound } from "next/navigation";
@@ -199,9 +200,9 @@ export default async function SubmissionDetailPage({
                       {member.name} ({member.relationship})
                     </p>
                     <p className="text-slate-600">
-                      Age {member.age} · {member.isAdult ? "Adult" : "Minor"}
+                      {householdAgeLabel(member)}
                     </p>
-                    {member.isAdult ? (
+                    {member.isAdult || member.age >= 18 ? (
                       <p className="text-slate-600">
                         Income sources: {member.incomeSources.filter(Boolean).join(", ") || "None listed"}
                       </p>

@@ -269,3 +269,25 @@ test("internal bill cannot satisfy document presence; uploaded bill still needs 
   assert.equal(patient.evidence[0].uploaded, true);
   assert.match(patient.evidence[0].applicability, /Confirm/);
 });
+
+test('explicit utility need creates separate energy routes; missing and stale utility answers do not', () => {
+ const base={patients:{state:'AZ'},insurance_details:{financialNeeds:['electricity_gas'],utilities:{utilityProvider:'Synthetic Utility',shutoff:'not_sure'}}};
+ const profile=adaptSubmission(base);
+ assert.equal(known(profile,'utilityNeed'),'yes');
+ assert.equal(known(profile,'shutoff'),undefined);
+ const cards=buildPlan(profile);
+ assert.deepEqual(cards.map(c=>c.id),['liheap','power-az']);
+ assert.equal(cards[0].applicationId,cards[1].applicationId);
+ const unchecked=adaptSubmission({...base,insurance_details:{...base.insurance_details,financialNeeds:[]}});
+ assert.equal(known(unchecked,'utilityNeed'),undefined);
+ assert.equal(known(unchecked,'utilityProvider'),undefined);
+ assert.equal(buildPlan(unchecked).length,0);
+});
+test('Mayo reuses patient names only for explicit self-applicants and preserves conflicts', () => {
+ const base={patients:{first_name:'Synthetic',last_name:'Patient'},insurance_details:{mayoFinancialAssistance:{relationshipToPatient:['I am the patient']}}};
+ assert.equal(known(adaptSubmission(base),'applicantFirstName'),'Synthetic');
+ const other=structuredClone(base); other.insurance_details.mayoFinancialAssistance.relationshipToPatient=['Parent'];
+ assert.equal(known(adaptSubmission(other),'applicantFirstName'),undefined);
+ const conflict=structuredClone(base); conflict.insurance_details.mayoFinancialAssistance.applicantFirstName='Different';
+ assert.equal(adaptSubmission(conflict).facts.applicantFirstName.state,'conflict');
+});

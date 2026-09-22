@@ -1,3 +1,4 @@
+import { canManageCatalog } from "@/lib/catalog/access";
 import Link from "next/link";
 import { AdminAutoRefresh } from "@/components/admin/AdminAutoRefresh";
 import { recordAuditEvent } from "@/lib/security/audit";
@@ -70,6 +71,7 @@ export default async function AdminDashboardPage() {
   return (
     <main className="min-h-screen p-5 md:p-8">
       <div className="mx-auto grid max-w-6xl gap-6">
+        {canManageCatalog(session.role, session.user.email, demoMode) ? <Link href="/admin/catalog" className="text-pine underline">Manage program & resource library</Link> : null}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-pine">

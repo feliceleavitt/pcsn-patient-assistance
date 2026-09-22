@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FileUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { TextAreaField, TextField } from "@/components/ui/Field";
 
 type PatientApplication = {
+  volunteerAccessConsent?: boolean;
   status: string;
   createdAt: string;
   missingDocuments: string[];
@@ -58,6 +60,7 @@ export function PatientApplicationPanel({
 }: {
   application: PatientApplication;
 }) {
+  const router = useRouter();
   const [contact, setContact] = useState({
     phone: application.patient.phone,
     email: application.patient.email,
@@ -70,7 +73,7 @@ export function PatientApplicationPanel({
   const [message, setMessage] = useState("");
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [saving, setSaving] = useState(false);
-  const [volunteerAccessConsent, setVolunteerAccessConsent] = useState(false);
+  const [volunteerAccessConsent, setVolunteerAccessConsent] = useState(application.volunteerAccessConsent === true);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
@@ -110,9 +113,9 @@ export function PatientApplicationPanel({
     }
 
     setSaved(true);
-    setVolunteerAccessConsent(false);
     setMessage("");
     setFiles({});
+    router.refresh();
   }
 
   return (
@@ -288,7 +291,7 @@ export function PatientApplicationPanel({
           value={message}
           onChange={(event) => setMessage(event.target.value)}
         />
-        <label className="flex items-start gap-3 rounded-md border border-pine/30 bg-pine/5 p-4 text-sm leading-6">
+        {application.volunteerAccessConsent ? <p className="text-sm text-slate-600">Volunteer access and contact permission is saved with your request.</p> : <label className="flex items-start gap-3 rounded-md border border-pine/30 bg-pine/5 p-4 text-sm leading-6">
           <input
             className="mt-1"
             type="checkbox"
@@ -301,7 +304,7 @@ export function PatientApplicationPanel({
             point, and I give permission for volunteers to contact me to offer
             assistance with my application.<span className="ml-1 text-coral">*</span>
           </span>
-        </label>
+        </label>}
         <div className="flex flex-wrap items-center gap-3">
           <Button onClick={save} disabled={saving || !volunteerAccessConsent}>
             {saving ? "Saving..." : "Save changes"}
