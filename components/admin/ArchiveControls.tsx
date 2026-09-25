@@ -16,6 +16,7 @@ export function ArchiveControls({
   const [error, setError] = useState("");
 
   async function updateArchive() {
+    if (!archived && !window.confirm("Archive this application? It will leave the active queue and can be restored from the archive.")) return;
     setSaving(true);
     setError("");
     const response = await fetch(

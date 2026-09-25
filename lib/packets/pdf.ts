@@ -1,3 +1,4 @@
+import {financialSchema} from "../intake/financial";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { decryptBuffer } from "@/lib/security/crypto";
 
@@ -235,8 +236,19 @@ export async function buildPatientPacketPdf({
   writeLine("Household size", submission.household_size);
   writeLine("Employment status", submission.employment_status);
 
+  const financial = financialSchema.safeParse(submission.insurance_details?.financial || {});
+  if (financial.success && submission.insurance_details?.financial) {
+    heading("Additional financial facts — patient reported");
+    writeLine("Married", financial.data.married || "Unknown");
+    writeLine("Has dependents", financial.data.hasDependents || "Unknown");
+    writeLine("Employer / work schedule", [financial.data.employer, financial.data.workSchedule].filter(Boolean).join("; "));
+    for (const income of financial.data.income) writeLine(income.kind, income.receives === "yes" ? `${income.amount || "Unknown amount"} ${income.frequency} — ${income.source}` : income.receives || "Unknown");
+    for (const bill of financial.data.bills) writeLine("Medical expense", `${bill.facility || "Unknown provider"}; ${bill.kind}; amount ${bill.amount || "unknown"}; service ${bill.serviceDate || "unknown"}; insurance processed: ${bill.insuranceProcessed || "unknown"}; linked document ${bill.documentId || "none"}`);
+    writeLine("Review", "These facts and linked files require volunteer verification. An estimate or EOB is not an outstanding bill. This worksheet is not an official application or eligibility decision.");
+  }
+
   const mayo = submission.insurance_details?.mayoFinancialAssistance as Record<string, unknown> | undefined;
-  if (mayo) {
+  if (mayo && (submission.treatment_facilities ?? []).some((f: string) => /mayo/i.test(f))) {
     heading("Mayo Clinic Arizona financial assistance");
     writeLine("Applicant", [mayo.applicantFirstName, mayo.applicantMiddleName, mayo.applicantLastName].filter(Boolean).join(" "));
     writeLine("Relationship to patient", mayo.relationshipToPatient);

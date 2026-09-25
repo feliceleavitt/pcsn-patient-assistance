@@ -1,3 +1,8 @@
+import {missingIntakeRequirements} from "@/lib/intake/requirements";
+import type {IntakePayload} from "@/lib/types";
+import { financialSchema, memberDetailsSchema } from "@/lib/intake/financial";
+import { ageFromBirthDate } from "@/lib/household";
+import { validBirthDate, validMoney, validPhone, validMonthOrDate } from "@/lib/intake/validation";
 import { financialNeedOptions } from "@/lib/intake/needs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,13 +15,14 @@ import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const payloadSchema = z.object({
+  financial: financialSchema.optional(),
   assistanceType: z.enum(["manufacturer", "hospital", "both"]),
   patient: z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),
-    dateOfBirth: z.string().min(1),
+    dateOfBirth: z.string().refine(validBirthDate, "Enter a real date of birth that is not in the future."),
     socialSecurityNumber: z.string().optional().default("").transform((value) => value.replace(/\D/g, "")).pipe(z.string().refine(value => value === "" || /^\d{9}$/.test(value), "Enter nine digits or leave blank.")),
-    phone: z.string().min(1),
+    phone: z.string().refine(validPhone, "Enter a phone number with at least 10 digits, including the area code."),
     email: z.string().email(),
     addressLine1: z.string().min(1),
     addressLine2: z.string().optional(),
@@ -37,11 +43,11 @@ const payloadSchema = z.object({
   diagnosis: z.object({
     cancerType: z.string().min(1),
     cancerStage: z.string().optional(),
-    diagnosisDate: z.string().min(1),
+    diagnosisDate: z.string().refine(validMonthOrDate, "Enter a valid diagnosis month and year."),
     treatmentPlan: z.string().optional().default(""),
     treatmentStartDate: z.string().optional(),
     medicationRequested: z.string().optional(),
-    treatments: z.array(z.object({ name: z.string(), startDate: z.string().optional() })).default([]),
+    treatments: z.array(z.object({ name: z.string(), startDate: z.string().refine(value => !value || validMonthOrDate(value), "Enter a valid month and year, or leave blank if unknown.").optional() })).default([]),
     medications: z.array(z.string()).default([]),
     pharmacyName: z.string().optional(),
   }),
@@ -94,12 +100,13 @@ const payloadSchema = z.object({
   household: z.object({
     financialNeeds: z.array(z.string().refine(value => financialNeedOptions.some(([id]) => id === value))).max(12).optional(),
     utilities: z.object({ utilityProvider:z.string().max(200).optional(),accountHolder:z.string().max(200).optional(),serviceAddress:z.string().max(500).optional(),shutoff:z.enum(["yes","no","not_sure",""]).optional(),utilitiesInRent:z.enum(["yes","no","not_sure",""]).optional() }).optional(),
-    monthlyIncome: z.union([z.number(), z.string()]).transform((value) => Number(String(value).replace(/[$,\s]/g, ""))).pipe(z.number().nonnegative()),
-    annualIncome: z.union([z.number(), z.string()]).transform((value) => Number(String(value).replace(/[$,\s]/g, ""))).pipe(z.number().nonnegative()),
+    monthlyIncome: z.union([z.number(), z.string()]).refine(validMoney, "Enter a dollar amount such as 1,250.50; use 0 only for no income.").transform((value) => Number(String(value).replace(/[$,\s]/g, ""))).pipe(z.number().nonnegative()),
+    annualIncome: z.union([z.number(), z.string()]).refine(validMoney, "Enter a dollar amount such as 1,250.50; use 0 only for no income.").transform((value) => Number(String(value).replace(/[$,\s]/g, ""))).pipe(z.number().nonnegative()),
     householdSize: z.number().int().positive(),
     employmentStatus: z.string().min(1),
     members: z.array(
       z.object({
+        ...memberDetailsSchema.shape,
         name: z.string().min(1),
         relationship: z.string().min(1),
         age: z.number().int().nonnegative(),
@@ -158,7 +165,7 @@ function formatValidationError(error: z.ZodError) {
       const path = issue.path
         .filter((part) => typeof part === "string")
         .join(".");
-      return fieldLabels[path] ?? path;
+      return `${fieldLabels[path] ?? path}: ${issue.message}`;
     })
     .filter(Boolean);
   const uniqueLabels = [...new Set(labels)];
@@ -180,9 +187,10 @@ export async function POST(request: Request) {
   }
 
   const formData = await request.formData();
+  if (formData.get("submissionIntent") !== "patient-confirmed") return NextResponse.json({error:"Review your application and confirm Submit application before sending."},{status:400});
   const rawPayload = formData.get("payload");
   if (typeof rawPayload !== "string") {
-    return NextResponse.json({ error: "Missing payload" }, { status: 400 });
+    return NextResponse.json({ error: "Your form could not be read. Reload your saved application and try again." }, { status: 400 });
   }
 
   let payloadJson: unknown;
@@ -209,6 +217,8 @@ export async function POST(request: Request) {
     if (new Set(draftDocumentIds).size !== draftDocumentIds.length) throw new Error("Duplicate documents");
   } catch { return NextResponse.json({error:"Please reload your saved documents before submitting."},{status:400}); }
   const payload = parsed.data;
+  const missing = missingIntakeRequirements(payload as IntakePayload, ["manufacturer", "both"].includes(payload.assistanceType), ["hospital", "both"].includes(payload.assistanceType) && payload.hospital.treatmentFacilities.includes("Mayo Clinic Arizona"));
+  if (missing.length) return NextResponse.json({error: missing.map(([, , message])=>message).join(" ")},{status:400});
   const encryptedSsn = payload.patient.socialSecurityNumber ? encryptBuffer(Buffer.from(payload.patient.socialSecurityNumber, "utf8")) : null;
   const supabase = createServiceClient();
   const { data: patient, error: patientError } = await supabase
@@ -242,7 +252,7 @@ export async function POST(request: Request) {
       cancer_type: payload.diagnosis.cancerType,
       diagnosis_date: /^\d{4}-\d{2}$/.test(payload.diagnosis.diagnosisDate) ? `${payload.diagnosis.diagnosisDate}-01` : payload.diagnosis.diagnosisDate,
       treatment_plan: payload.diagnosis.treatments.filter((item) => item.name.trim()).map((item) => `${item.name}${item.startDate ? ` (${item.startDate})` : ""}`).join("; ") || payload.diagnosis.treatmentPlan,
-      treatment_start_date: payload.diagnosis.treatments.find((item) => item.startDate)?.startDate ? `${payload.diagnosis.treatments.find((item) => item.startDate)!.startDate}-01` : null,
+      treatment_start_date: payload.diagnosis.treatments.find((item) => item.startDate)?.startDate ? (payload.diagnosis.treatments.find((item) => item.startDate)!.startDate!.length === 7 ? `${payload.diagnosis.treatments.find((item) => item.startDate)!.startDate}-01` : payload.diagnosis.treatments.find((item) => item.startDate)!.startDate) : null,
       medication_requested: payload.diagnosis.medications.filter(Boolean).join("; ") || payload.diagnosis.medicationRequested || null,
       clinic_name: payload.provider.clinicName,
       provider_name: payload.provider.providerName,
@@ -258,12 +268,12 @@ export async function POST(request: Request) {
       guarantor_number: payload.hospital.guarantorNumber || null,
       treatment_facilities: payload.hospital.treatmentFacilities,
       has_insurance: payload.insurance.hasInsurance,
-      insurance_details: { ...payload.insurance, volunteerAccessConsent: payload.consent.volunteerAccessConsent, volunteerAccessConsentedAt: payload.consent.signedAt, financialNeeds: payload.household.financialNeeds, utilities: payload.household.financialNeeds?.includes("electricity_gas") ? payload.household.utilities : undefined, socialSecurityNumber: encryptedSsn ? { encrypted: encryptedSsn.encrypted.toString("base64"), iv: encryptedSsn.iv, tag: encryptedSsn.tag, last4: payload.patient.socialSecurityNumber.slice(-4) } : undefined, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.firstName : ""), applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.lastName : ""), responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.dateOfBirth : ""), location: "Mayo Clinic Arizona" } : undefined },
+      insurance_details: { financial: payload.financial, ...payload.insurance, volunteerAccessConsent: payload.consent.volunteerAccessConsent, volunteerAccessConsentedAt: payload.consent.signedAt, financialNeeds: payload.household.financialNeeds, utilities: payload.household.financialNeeds?.includes("electricity_gas") ? payload.household.utilities : undefined, socialSecurityNumber: encryptedSsn ? { encrypted: encryptedSsn.encrypted.toString("base64"), iv: encryptedSsn.iv, tag: encryptedSsn.tag, last4: payload.patient.socialSecurityNumber.slice(-4) } : undefined, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.treatmentFacilities.some(f=>f.toLowerCase() === "mayo clinic arizona") && payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.firstName : ""), applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.lastName : ""), responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.dateOfBirth : ""), location: "Mayo Clinic Arizona" } : undefined },
       monthly_income: payload.household.monthlyIncome,
       annual_income: payload.household.annualIncome,
       household_size: payload.household.householdSize,
       employment_status: payload.household.employmentStatus,
-      household_members: payload.household.members,
+      household_members: payload.household.members.map(member => member.relationship === "Patient" ? {...member,age:ageFromBirthDate(payload.patient.dateOfBirth) ?? member.age,isAdult:(ageFromBirthDate(payload.patient.dateOfBirth) ?? member.age)>=18} : member),
       consent_release: payload.consent.releaseMedicalFinancial,
       consent_contact_permission: payload.consent.contactPermission,
       signature: payload.consent.signature,

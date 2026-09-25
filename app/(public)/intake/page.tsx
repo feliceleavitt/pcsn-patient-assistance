@@ -1,3 +1,4 @@
+import { NewRequestPrompt } from "@/components/patient/NewRequestPrompt";
 import { readPublishedCatalog } from "@/lib/catalog/store";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,12 +10,14 @@ import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { IntakePayload } from "@/lib/types";
 
-export default async function IntakePage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
+export default async function IntakePage({ searchParams }: { searchParams: Promise<{ new?: string; blank?: string }> }) {
   const patientSession = await getPatientSession();
   if (!patientSession) {
     redirect("/patient/login?next=/intake");
   }
 
+  const query = await searchParams;
+  if (query.new === "1") return <NewRequestPrompt />;
   const catalog = await readPublishedCatalog();
   const supabase = createServiceClient();
   const { data: submittedRequest, error: requestError } = await supabase
@@ -25,7 +28,7 @@ export default async function IntakePage({ searchParams }: { searchParams: Promi
     .maybeSingle();
   if (requestError) throw new Error("Unable to check your existing request. Please try again.");
   // A new request must be deliberate; returning patients should see their submitted request.
-  if (submittedRequest && (await searchParams).new !== "1") redirect("/patient");
+
 
   const { data: existingDraft, error: draftError } = await supabase
     .from("intake_drafts")
@@ -34,6 +37,7 @@ export default async function IntakePage({ searchParams }: { searchParams: Promi
     .maybeSingle();
 
   if (draftError) throw new Error("Unable to load your saved application. Please try again.");
+  if (submittedRequest && !existingDraft?.payload?._requestStartedAt && query.blank !== "1") redirect("/patient");
   let draft = existingDraft;
   if (!existingDraft) {
     const { data: startedDraft } = await supabase

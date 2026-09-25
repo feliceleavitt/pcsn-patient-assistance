@@ -1,3 +1,4 @@
+import type { FinancialDetails } from "./intake/financial";
 export type ApplicationStatus =
   | "submitted"
   | "under_review"
@@ -38,6 +39,7 @@ export type MayoFinancialAssistance = {
 };
 
 export type IntakePayload = {
+  financial?: FinancialDetails;
   assistanceType: "manufacturer" | "hospital" | "both";
   patient: {
     firstName: string;
@@ -125,6 +127,11 @@ export type IntakePayload = {
     members: Array<{
       name: string;
       relationship: string;
+      dateOfBirth?: string;
+      dependent?: "yes"|"no"|"not_sure"|"";
+      sharesFinances?: "yes"|"no"|"not_sure"|"";
+      supportsPatient?: "yes"|"no"|"not_sure"|"";
+      supportedByPatient?: "yes"|"no"|"not_sure"|"";
       age: number;
       isAdult: boolean;
       employmentStatus?: string;

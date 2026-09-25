@@ -1,0 +1,17 @@
+const {test}=require('node:test'), assert=require('node:assert/strict');
+const fs=require('fs'),path=require('path'),Module=require('module'),ts=require('typescript');
+const root=path.resolve(__dirname,'..'),original=Module._load;let row=null,owner='synthetic-owner',fail=false;
+require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText,f);
+Module._load=function(r,p,m){if(r==='@/lib/security/patient')return {getPatientSession:async()=>owner?{user:{id:owner}}:null};if(r==='@/lib/supabase/server')return {createServiceClient:()=>({from:()=>{let filter;const q={select:()=>q,eq:(key,id)=>{filter=id;return q},upsert:value=>{if(!fail)row=structuredClone({...value,updated_at:'2026-09-22T00:00:00Z'});return q},single:async()=>({data:row,error:fail?{}:null}),maybeSingle:async()=>({data:row?.user_id===filter?row:null,error:null})};return q}})};if(r.startsWith('@/'))r=path.join(root,r.slice(2));return original.call(this,r,p,m)};
+const {GET,PUT}=require('../app/api/intake/draft/route.ts');
+test('saved draft round-trip preserves every nested answer and resume step but excludes SSN',async()=>{
+ const payload={patient:{firstName:'SYNTHETIC',socialSecurityNumber:'DO-NOT-STORE'},consent:{volunteerAccessConsent:true},household:{monthlyIncome:'0',annualIncome:'1,250.50',financialNeeds:['electricity_gas'],utilities:{shutoff:'not_sure'},members:[{age:0,isAdult:false,name:'SYNTHETIC'}]},diagnosis:{treatments:[{name:'SYNTHETIC',startDate:''}],medications:['SYNTHETIC']},_resumeStep:6};
+ const response=await PUT(new Request('https://portal.example/api/intake/draft',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({payload})}));assert.equal(response.status,200);
+ delete payload.patient.socialSecurityNumber;assert.deepEqual((await (await GET()).json()).draft.payload,payload);
+ owner='another-synthetic-owner';assert.equal((await (await GET()).json()).draft,null);
+ owner='synthetic-owner';fail=true;assert.equal((await PUT(new Request('https://portal.example/api/intake/draft',{method:'PUT',body:JSON.stringify({payload})}))).status,500);
+ owner=null;assert.equal((await GET()).status,401);
+});
+
+test('an older open tab cannot overwrite a newly started blank request',async()=>{owner='synthetic-owner';fail=false;row={user_id:owner,payload:{_requestStartedAt:'2026-09-23T00:00:00Z'}};const response=await PUT(new Request('https://portal.example/api/intake/draft',{method:'PUT',body:JSON.stringify({payload:{consent:{volunteerAccessConsent:true},patient:{firstName:'OLD SYNTHETIC'}}})}));assert.equal(response.status,409);assert.equal(row.payload.patient,undefined);});
+test('explicit blank request resets only the signed-in owner draft and leaves submitted records alone',async()=>{owner='synthetic-owner';fail=false;row={user_id:owner,payload:{patient:{firstName:'OLDER SYNTHETIC'}}};const {POST}=require('../app/api/intake/draft/route.ts');const request=origin=>new Request('https://portal.example/api/intake/draft',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify({startBlank:true})});assert.equal((await POST(request('https://untrusted.example'))).status,403);assert.equal(row.payload.patient.firstName,'OLDER SYNTHETIC');assert.equal((await POST(request('https://portal.example'))).status,200);assert.equal(row.user_id,owner);assert.equal(row.payload.patient,undefined);assert.ok(row.payload._requestStartedAt);});

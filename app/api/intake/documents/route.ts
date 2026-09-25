@@ -8,7 +8,12 @@ const columns = "id,original_filename,document_type,uploaded_at";
 export async function GET() {
   const session = await getPatientSession();
   if (!session) return NextResponse.json({error:"Please sign in."},{status:401});
-  const {data,error} = await createServiceClient().from("intake_draft_documents").select(columns).eq("user_id",session.user.id).order("uploaded_at");
+  const db = createServiceClient();
+  const {data:draft,error:draftError} = await db.from("intake_drafts").select("payload").eq("user_id",session.user.id).maybeSingle();
+  if (draftError) return NextResponse.json({error:"Unable to load the active draft."},{status:503});
+  let query = db.from("intake_draft_documents").select(columns).eq("user_id",session.user.id);
+  if (draft?.payload?._requestStartedAt) query = query.gte("uploaded_at",draft.payload._requestStartedAt);
+  const {data,error} = await query.order("uploaded_at");
   return error ? NextResponse.json({error:"Unable to load saved documents. Please try again."},{status:503}) : NextResponse.json({documents:data});
 }
 export async function POST(request: Request) {

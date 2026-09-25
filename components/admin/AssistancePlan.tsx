@@ -1,3 +1,4 @@
+import {ProgramCaseEditor} from "./ProgramCaseEditor";
 import { readPublishedCatalog } from "@/lib/catalog/store";
 import { catalogPrograms, withCatalogQuestions } from "@/lib/catalog/runtime";
 import {
@@ -49,9 +50,9 @@ function FactRow({ fact }: { fact: Fact }) {
 
 /** Server component; no raw submission, SSN, document bytes or notes go to a client component. */
 export async function AssistancePlan({
-  profile: originalProfile,
+  profile: originalProfile, submissionId, cases = [], trackingEnabled = false,
 }: {
-  profile: Profile;
+  profile: Profile; submissionId?: string; cases?: Record<string,unknown>[]; trackingEnabled?: boolean;
 }) {
   let catalog;
   try {
@@ -81,7 +82,7 @@ export async function AssistancePlan({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-pine">
-            Volunteer navigation · read-only preview
+            Volunteer navigation · assistance plan
           </p>
           <h2
             id="assistance-plan-title"
@@ -102,9 +103,7 @@ export async function AssistancePlan({
         any individual program.
       </p>
       <p className="rounded-md bg-paper p-3 text-sm">
-        Assignments, submission dates, decisions and follow-up dates are not
-        saved in this preview. External progress is unknown until a volunteer
-        records it in a future program case.
+        {trackingEnabled ? "Use each program case to save assignments, external progress and follow-up dates. Screening is separate from recorded application progress." : "Program case storage is not enabled. Assignments and external progress are not saved here yet."}
       </p>
       <details className="rounded-md border border-pine/20 p-4">
         <summary className="cursor-pointer font-semibold">
@@ -210,11 +209,10 @@ export async function AssistancePlan({
       {!plan.length ? (
         <div className="rounded-md bg-paper p-4">
           <h3 className="font-semibold">
-            More information needed · no supported pilot route identified yet
+            More information needed · no published route identified yet
           </h3>
           <p className="mt-2 text-sm leading-6">
-            This preview only covers Mayo Arizona and the DES energy-assistance
-            route. Other assistance remains in the existing patient record and
+            No enabled published route matched the known facts. Review the program catalog and missing facts. Other assistance remains in the existing patient record and
             worksheet. Volunteer next action: review the patient’s stated need
             and identify a supported route; this is not a finding of
             ineligibility.
@@ -249,6 +247,7 @@ export async function AssistancePlan({
             aria-labelledby={`program-${card.id}`}
             className="overflow-hidden rounded-md border border-slate-200"
           >
+            {trackingEnabled && submissionId ? <ProgramCaseEditor submissionId={submissionId} programId={card.id} initial={cases.find(c=>c.program_id===card.id)}/> : null}
             <div className="border-b border-slate-200 bg-paper p-4 md:p-5">
               <h3 id={`program-${card.id}`} className="text-lg font-semibold">
                 {card.name}
@@ -264,7 +263,7 @@ export async function AssistancePlan({
                   <dt className="text-slate-600">
                     External application progress
                   </dt>
-                  <dd>{card.progress}</dd>
+                  <dd>{trackingEnabled ? String(cases.find(c=>c.program_id===card.id)?.status ?? "No saved program case").replaceAll("_"," ") : card.progress}</dd>
                 </div>
               </dl>
               <p className="mt-3 text-sm leading-6">
@@ -312,7 +311,7 @@ export async function AssistancePlan({
                 <p className="mt-1 text-sm leading-6">{card.next}</p>
                 <p className="mt-2 text-sm">
                   <strong>Responsible person: </strong>
-                  {card.owner}
+                  {trackingEnabled ? String(cases.find(c=>c.program_id===card.id)?.assigned_to || "Volunteer unassigned; patient provides missing information") : card.owner}
                 </p>
               </div>
               <div className="grid gap-5 md:grid-cols-2">
@@ -487,13 +486,13 @@ export async function AssistancePlan({
                   Open official{" "}
                   {card.applicationId === "az-des-direct-energy"
                     ? "shared DES application"
-                    : "Mayo application"}{" "}
+                    : `${card.name} application`}{" "}
                   ↗
                 </a>
                 <p className="mt-2 text-slate-600">
                   After applying: save the confirmation using the existing
                   upload workflow, record what was sent in volunteer notes, and
-                  arrange follow-up. This preview does not submit anything.
+                  arrange follow-up. The portal does not submit external applications automatically.
                 </p>
               </div>
               <details className="text-xs text-slate-600">

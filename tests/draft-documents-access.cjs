@@ -2,12 +2,12 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path=require('node:path'), Module=require('node:module'), ts=require('typescript');
 const root=path.resolve(__dirname,'..'), original=Module._load;
-let session=null, calls=[], consent=false;
+let session=null, calls=[], consent=false, startedAt=null;
 require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText,f);
 Module._load=function(request,parent,main){
  if(request==='@/lib/security/patient') return {getPatientSession:async()=>session};
  if(request==='@/lib/supabase/server') return {createServiceClient:()=>({from:table=>{
-  const q={select:columns=>{calls.push(['select',table,columns]);return q},eq:(k,v)=>{calls.push(['eq',k,v]);return q},order:async()=>({data:[],error:null}),maybeSingle:async()=>({data:{payload:{consent:{volunteerAccessConsent:consent}}}})};return q;
+  const q={select:columns=>{calls.push(['select',table,columns]);return q},eq:(k,v)=>{calls.push(['eq',k,v]);return q},gte:(k,v)=>{calls.push(["gte",k,v]);return q},order:async()=>({data:[],error:null}),maybeSingle:async()=>({data:{payload:{_requestStartedAt:startedAt,consent:{volunteerAccessConsent:consent}}}})};return q;
  }})};
  if(request.startsWith('@/')) request=path.join(root,request.slice(2));
  return original.call(this,request,parent,main);
@@ -38,3 +38,5 @@ test('cross-origin draft mutations are rejected',async()=>{
  session={user:{id:'synthetic-owner'}};
  for(const fn of [POST,DELETE]) assert.equal((await fn(new Request('https://portal.example/api/intake/documents',{headers:{origin:'https://untrusted.example'}}))).status,403);
 });
+
+test('blank request only lists documents uploaded for its new start time',async()=>{startedAt='2026-09-23T00:00:00Z';calls=[];assert.equal((await GET()).status,200);assert.ok(calls.some(c=>c[0]==='gte'&&c[1]==='uploaded_at'&&c[2]===startedAt));});
