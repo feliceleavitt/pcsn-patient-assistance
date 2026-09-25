@@ -3,6 +3,8 @@ require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f
 const {ageFromBirthDate}=require('../lib/household.ts');
 const {honorHealthReadiness}=require('../lib/assistance/honorhealth.ts');
 const {prepareHonorHealthDraft}=require('../lib/catalog/honorhealth.ts');
+const {publicationErrors}=require('../lib/catalog/model.ts');
+test('HonorHealth draft has all rule mappings required for publication',()=>{const entries=prepareHonorHealthDraft([]).map(e=>({...e,verifiedOn:'2026-09-23',verifiedBy:'Synthetic reviewer'}));assert.deepEqual(publicationErrors(entries),[]);});
 const {catalogPrograms}=require('../lib/catalog/runtime.ts');
 const {adaptSubmission}=require('../lib/assistance/profile.ts');
 const {followUpDue}=require('../lib/assistance/cases.ts');

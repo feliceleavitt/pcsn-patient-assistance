@@ -11,6 +11,15 @@ export function prepareHonorHealthDraft(current: Entry[]): Entry[] {
   );
   const id = existing?.id || "honorhealth-financial-assistance";
   const entries = current.map((e) => ({ ...e }));
+  if (!entries.some((e) => e.kind === "question" && e.factKey === "honorhealthNeed"))
+    entries.push({
+      ...blankEntry("question", "fact-honorhealthNeed"),
+      enabled: true,
+      name: "HonorHealth treatment and medical bill assistance",
+      factKey: "honorhealthNeed",
+      help: "Derived from the patient's existing facility and requested assistance; do not ask the patient again. This is a routing signal, not an eligibility determination.",
+      sourceUrl: honorhealthSource,
+    });
   const fields = [
     "firstName",
     "lastName",
