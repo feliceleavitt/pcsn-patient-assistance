@@ -3,12 +3,10 @@
 import Link from "next/link";
 import { PortalIntroduction } from "@/components/patient/PortalIntroduction";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/Field";
 
 export default function PatientLoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,12 +18,14 @@ export default function PatientLoginPage() {
     if (!next || !next.startsWith("/") || next.startsWith("//")) {
       return "/patient";
     }
-    return next;
+    const destination = new URL(next, window.location.origin);
+    return destination.origin === window.location.origin ? `${destination.pathname}${destination.search}${destination.hash}` : "/patient";
   }
 
   async function submit() {
     setError("");
     setSubmitting(true);
+    try {
     const response = await fetch(`/api/patient/${mode}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -41,8 +41,11 @@ export default function PatientLoginPage() {
       return;
     }
 
-    router.push(getSafeNextPath());
-    router.refresh();
+    // A full navigation avoids reusing an unauthenticated prefetched route.
+    window.location.assign(getSafeNextPath());
+    } catch {
+      setError("We could not connect. Check your internet connection and try signing in again.");
+    } finally { setSubmitting(false); }
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -70,14 +73,14 @@ export default function PatientLoginPage() {
             <PortalIntroduction />
         <div className="grid grid-cols-2 rounded-md bg-mist p-1 text-sm font-semibold">
           <button
-            className={`h-10 rounded ${mode === "login" ? "bg-white text-pine shadow-sm" : "text-slate-600"}`}
+            className={`h-12 rounded ${mode === "login" ? "bg-white text-pine shadow-sm" : "text-slate-600"}`}
             onClick={() => setMode("login")}
             type="button"
           >
             Sign in
           </button>
           <button
-            className={`h-10 rounded ${mode === "signup" ? "bg-white text-pine shadow-sm" : "text-slate-600"}`}
+            className={`h-12 rounded ${mode === "signup" ? "bg-white text-pine shadow-sm" : "text-slate-600"}`}
             onClick={() => setMode("signup")}
             type="button"
           >

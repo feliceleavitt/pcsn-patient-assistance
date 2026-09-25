@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId } from "react";
 
 export function AutocompleteField({
   label,
@@ -13,10 +13,7 @@ export function AutocompleteField({
   onChange: (value: string) => void;
   required?: boolean;
 }) {
-  const listId = useMemo(
-    () => `list-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-    [label],
-  );
+  const listId = useId();
 
   return (
     <label className="grid gap-2 text-sm">
@@ -26,9 +23,10 @@ export function AutocompleteField({
       </span>
       <input
         list={listId}
+        aria-required={required}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 rounded-md border border-slate-300 bg-white px-3 outline-none transition focus:border-pine focus:ring-2 focus:ring-pine/20"
+        className="min-w-0 w-full h-12 text-base rounded-md border border-slate-300 bg-white px-3 outline-none transition focus:border-pine focus:ring-2 focus:ring-pine/20"
       />
       <datalist id={listId}>
         {options.map((option) => (

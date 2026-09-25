@@ -264,6 +264,7 @@ export function adaptSubmission(input: unknown): Profile {
       ];
     },
   );
+  add("honorhealthNeed", "HonorHealth medical bill assistance", [["submissions.treatment_facilities + assistance_type", strings(s.treatment_facilities).some(f=>/honorhealth/i.test(f)) && ["hospital","both"].includes(String(s.assistance_type)) ? "yes" : undefined]]);
   return { facts, documents };
 }
 

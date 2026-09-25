@@ -23,3 +23,17 @@ textarea,
 button {
   font: inherit;
 }
+
+/* Keep keyboard focus visible and patient controls readable on small screens. */
+:where(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #145b4c;
+  outline-offset: 3px;
+}
+.patient-intake { min-width: 0; overflow-wrap: anywhere; }
+.patient-intake :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { min-width: 0; max-width: 100%; font-size: 16px; }
+.patient-intake label:has(input[type="checkbox"], input[type="radio"]) { min-height: 44px; }
+.patient-intake input:is([type="checkbox"], [type="radio"]) { width: 20px; height: 20px; flex-shrink: 0; }
+.patient-intake summary { min-height: 44px; padding-block: 10px; }
+.patient-intake :where(button, a) { min-height: 44px; }
+.patient-intake label:focus-within { outline-offset: 4px; }
+.patient-intake label:has(input[type="file"]:focus-visible) { outline: 3px solid #145b4c; }

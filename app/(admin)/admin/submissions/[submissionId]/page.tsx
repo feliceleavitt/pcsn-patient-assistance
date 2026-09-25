@@ -1,5 +1,9 @@
+import {casesEnabled} from "@/lib/assistance/cases";
+import {readPublishedCatalog} from "@/lib/catalog/store";
+import {catalogPrograms} from "@/lib/catalog/runtime";
+import {HonorHealthReadiness} from "@/components/admin/HonorHealthReadiness";
 import Link from "next/link";
-import { householdAgeLabel } from "@/lib/household";
+import { ageFromBirthDate, householdAgeLabel } from "@/lib/household";
 import { AssistancePlan } from "@/components/admin/AssistancePlan";
 import { adaptSubmission } from "@/lib/assistance/profile";
 import { notFound } from "next/navigation";
@@ -59,7 +63,13 @@ export default async function SubmissionDetailPage({
     ? (submission.treatment_facilities as string[])
     : [];
   const insurance = (submission.insurance_details ?? {}) as Record<string, unknown>;
-  const mayo = (insurance.mayoFinancialAssistance ?? null) as Record<string, unknown> | null;
+  const mayo = (treatmentFacilities.some(f=>/mayo/i.test(f)) ? insurance.mayoFinancialAssistance ?? null : null) as Record<string, unknown> | null;
+  const trackingEnabled = casesEnabled() && !demoMode;
+  const caseResult = trackingEnabled ? await supabase!.from("program_cases").select("*").eq("submission_id",submissionId) : {data:[],error:null};
+  const caseIds = (caseResult.data ?? []).map(c=>c.id);
+  const history = trackingEnabled && caseIds.length ? await supabase!.from("program_case_history").select("id,changed_at,snapshot").in("case_id",caseIds).order("changed_at",{ascending:false}) : {data:[],error:null};
+  const published = await readPublishedCatalog().catch(() => null);
+  const honorHealthActive = published && catalogPrograms(published.entries,adaptSubmission(submission),published.version).some(p=>p.applicationId === "honorhealth-enhanced");
   const ssn = (insurance.socialSecurityNumber ?? null) as Record<string, unknown> | null;
 
   await recordAuditEvent({
@@ -94,7 +104,10 @@ export default async function SubmissionDetailPage({
           </div>
         </div>
 
-        <AssistancePlan profile={adaptSubmission(submission)} />
+        {caseResult.error ? <p role="alert">Program cases could not be loaded. Reload before editing.</p> : null}
+        <AssistancePlan profile={adaptSubmission(submission)} submissionId={submissionId} cases={caseResult.data ?? []} trackingEnabled={trackingEnabled && !caseResult.error}/>
+        {honorHealthActive ? <HonorHealthReadiness submission={submission}/> : null}
+        {history.error ? <p role="alert">Program history could not be loaded.</p> : history.data?.length ? <details className="rounded-md border bg-white p-4"><summary className="font-semibold">Program case history ({history.data.length} changes)</summary><ul className="grid gap-3">{history.data.map(h=><li key={h.id}>{new Date(h.changed_at).toLocaleString()} — {h.snapshot.program_name}: {h.snapshot.status.replaceAll('_',' ')} · {h.snapshot.updated_by}<p>Assigned: {h.snapshot.assigned_to || 'Unassigned'} · Next action: {h.snapshot.next_action || 'Not recorded'} · Follow-up: {h.snapshot.follow_up_date || 'Not set'}</p></li>)}</ul></details> : null}
         {demoMode ? <Link href="/admin/assistance-plan-preview" className="text-sm text-pine underline">Explore synthetic Assistance Plan examples (development only)</Link> : null}
 
         <ApplicationEditor submissionId={submissionId} initial={{
@@ -200,7 +213,7 @@ export default async function SubmissionDetailPage({
                       {member.name} ({member.relationship})
                     </p>
                     <p className="text-slate-600">
-                      {householdAgeLabel(member)}
+                      {householdAgeLabel(member.relationship === "Patient" ? { ...member, age: ageFromBirthDate(submission.patients.date_of_birth) ?? member.age, isAdult: (ageFromBirthDate(submission.patients.date_of_birth) ?? member.age) >= 18 } : member)}
                     </p>
                     {member.isAdult || member.age >= 18 ? (
                       <p className="text-slate-600">
@@ -280,12 +293,7 @@ export default async function SubmissionDetailPage({
                 <div>
                   <dt className="text-slate-500">Clinic address</dt>
                   <dd>
-                    {submission.provider_address_line_1}
-                    {submission.provider_address_line_2
-                      ? `, ${submission.provider_address_line_2}`
-                      : ""}
-                    , {submission.provider_city}, {submission.provider_state}{" "}
-                    {submission.provider_postal_code}
+                    {[submission.provider_address_line_1, submission.provider_address_line_2, submission.provider_city, submission.provider_state, submission.provider_postal_code].filter(Boolean).join(", ") || "Not provided"}
                   </dd>
                 </div>
                 <div>

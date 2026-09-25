@@ -27,3 +27,15 @@ test('known adult age is never displayed as Minor because of an old unchecked bo
   assert.match(householdAgeLabel({ age: 12, isAdult: true }), /differ; confirm/);
   assert.equal(householdAgeLabel({ age: 12, isAdult: false }), 'Age 12 · Minor');
 });
+const { validBirthDate, validMoney, validPhone, validMonthOrDate } = require('../lib/intake/validation.ts');
+test('calendar dates reject impossible days and future birth dates', () => {
+ for (const value of ['2025-02-29','2026-04-31','2099-01-01','letters','']) assert.equal(validBirthDate(value,'2026-09-22'),false,value);
+ assert.equal(validBirthDate('1960-02-29','2026-09-22'),true);
+ assert.equal(validMonthOrDate('2026-13'),false);
+ assert.equal(validMonthOrDate('2026-09'),true);
+});
+test('income rejects blank, letters, negative values, scientific notation and malformed commas', () => {
+ for (const value of ['', '   ', 'abc', '-1', '1e3', '12,34', Infinity, null]) assert.equal(validMoney(value),false,String(value));
+ for (const value of [0,'0','1,250.50','$ 1,250.50',500]) assert.equal(validMoney(value),true,String(value));
+ assert.equal(validPhone('letters'),false); assert.equal(validPhone('602-555-0100'),true);
+});

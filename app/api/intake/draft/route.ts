@@ -1,3 +1,4 @@
+import { sameOrigin } from "@/lib/catalog/origin";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPatientSession } from "@/lib/security/patient";
@@ -58,6 +59,9 @@ export async function PUT(request: Request) {
   }
 
   const supabase = createServiceClient();
+  const {data: currentDraft, error: currentError} = await supabase.from("intake_drafts").select("payload").eq("user_id",patientSession.user.id).maybeSingle();
+  if (currentError) return NextResponse.json({error:"Unable to check your current draft. Please retry."},{status:503});
+  if ((currentDraft?.payload?._requestStartedAt ?? null) !== (parsed.data.payload._requestStartedAt ?? null)) return NextResponse.json({error:"A new request was started in another tab. Reload before editing; these older answers were not saved."},{status:409});
   const safePayload = structuredClone(parsed.data.payload);
   if (safePayload.patient && typeof safePayload.patient === "object") {
     delete (safePayload.patient as Record<string, unknown>).socialSecurityNumber;
@@ -104,4 +108,15 @@ export async function DELETE() {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+// Explicit reset only; viewing a link must never erase a draft.
+export async function POST(request: Request) {
+ const session = await getPatientSession();
+ if (!session) return NextResponse.json({error:"Please sign in."},{status:401});
+ if (!sameOrigin(request)) return NextResponse.json({error:"Invalid request origin."},{status:403});
+ const input = await request.json().catch(()=>null);
+ if (input?.startBlank !== true) return NextResponse.json({error:"Confirm starting a blank request."},{status:400});
+ const {error} = await createServiceClient().from("intake_drafts").upsert({user_id:session.user.id,created_at:new Date().toISOString(),payload:{assistanceType:"both",_requestStartedAt:new Date().toISOString()}},{onConflict:"user_id"});
+ return error ? NextResponse.json({error:"Unable to start a blank draft."},{status:503}) : NextResponse.json({ok:true});
 }

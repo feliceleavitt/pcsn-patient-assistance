@@ -127,7 +127,7 @@ export function PatientApplicationPanel({
               Current request
             </p>
             <h2 className="mt-2 text-2xl font-semibold">
-              {application.status.replaceAll("_", " ")}
+              {application.status.replaceAll("_", " ").replace(/^./, c => c.toUpperCase())}
             </h2>
           </div>
           <p className="text-sm text-slate-500">
@@ -253,7 +253,8 @@ export function PatientApplicationPanel({
       ) : null}
 
       <section className="grid gap-4 rounded-md bg-white p-5 shadow-soft">
-        <h2 className="text-lg font-semibold">Upload missing documents</h2>
+        <h2 className="text-lg font-semibold">Add documents</h2>
+        <p className="text-sm">These are upload categories, not a list of missing documents. Uploads are optional unless a volunteer specifically requests them above. Add only documents relevant to your request.</p>
         <div className="grid gap-4 md:grid-cols-2">
           {uploadOptions.map(([documentType, label]) => {
             const selectedCount = files[documentType]?.length ?? 0;

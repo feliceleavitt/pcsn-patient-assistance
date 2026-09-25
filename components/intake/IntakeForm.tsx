@@ -1,8 +1,13 @@
 "use client";
 
+import { FinancialDetails, Answer } from "@/components/intake/FinancialDetails";
+import { financialSchema } from "@/lib/intake/financial";
+import { ageFromBirthDate } from "@/lib/household";
+import { IntakeReview } from "@/components/intake/IntakeReview";
+import { PatientPrivacyNotice } from "@/components/patient/PatientPrivacyNotice";
 import { financialNeedOptions } from "@/lib/intake/needs";
 import { missingIntakeRequirements } from "@/lib/intake/requirements";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileUp, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -35,15 +40,15 @@ type DocumentType =
   | "other_documents";
 
 const steps = [
-  "Program",
-  "Patient",
+  "Your needs",
+  "Contact",
   "Caregiver",
   "Treatment",
-  "Provider",
+  "Care team",
   "Insurance",
-  "Household",
+  "Household & income",
   "Documents",
-  "Consent",
+  "Permissions",
   "Review",
 ];
 
@@ -221,15 +226,15 @@ const employmentOptions = [
 ];
 
 const fieldStepLabels = [
-  "Program",
-  "Patient",
+  "Your needs",
+  "Contact",
   "Caregiver",
   "Treatment",
-  "Provider",
+  "Care team",
   "Insurance",
-  "Household",
+  "Household & income",
   "Documents",
-  "Consent",
+  "Permissions",
 ] as const;
 
 const emptyMayoApplication: MayoFinancialAssistance = {
@@ -313,8 +318,8 @@ const initialState: IntakePayload = {
     eobAvailable: false,
   },
   household: {
-    monthlyIncome: 0,
-    annualIncome: 0,
+    monthlyIncome: "",
+    annualIncome: "",
     householdSize: 1,
     employmentStatus: "",
     members: [
@@ -361,6 +366,15 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
     household: { ...initialState.household, ...initialDraft.household },
     consent: { ...initialState.consent, ...initialDraft.consent },
   } : initialState);
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingSaves = useRef(0);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const snapshot = JSON.stringify({ ...form, _resumeStep: step });
+  const [savedSnapshot, setSavedSnapshot] = useState(() => snapshot);
+  const unsaved = snapshot !== savedSnapshot;
+  const [saveError, setSaveError] = useState("");
   const [savedDocuments, setSavedDocuments] = useState<Array<{id:string;original_filename:string;document_type:string}>>([]);
   const [uploading, setUploading] = useState(false);
   const [documentsLoaded, setDocumentsLoaded] = useState(false);
@@ -386,7 +400,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
   async function uploadDocuments(documentType: DocumentType, selected: File[]) {
     setUploading(true); setDocumentError("");
     try {
-      if (!(await saveDraft())) throw new Error("Save your permission and answers before uploading.");
+      if (!(await saveDraft())) throw new Error("Your answers could not be saved. Check the save message above, sign in again if needed, then retry.");
+      if (selected.some(file => !/\.(pdf|jpe?g|png)$/i.test(file.name))) throw new Error("Choose a PDF, JPG, or PNG. For iPhone HEIC photos, export or save a JPG first.");
       if (selected.some(file => file.size > 4194304)) throw new Error("Please choose files smaller than 4 MB each.");
       for (const file of selected) {
         const body = new FormData(); body.append("file", file); body.append("documentType", documentType);
@@ -518,7 +533,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
 
   function missingRequiredItems() { return missingIntakeRequirements(form, isManufacturer, needsMayoApplication); }
 
-  async function saveDraft(resumeStep = step, quiet = false) {
+  const saveDraft = useCallback(async (resumeStep = step, quiet = false) => {
+    const payloadSnapshot = JSON.stringify({ ...form, _resumeStep: resumeStep });
     if (!form.consent.volunteerAccessConsent) {
       setSubmitError(
         "Please consent to volunteer access and contact before saving your application.",
@@ -526,15 +542,17 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
       return;
     }
 
+    pendingSaves.current += 1;
     setSavingDraft(true);
-    setSubmitError("");
+    setSaveError("");
     if (!quiet) setDraftMessage("");
 
+    const run = async () => {
     try {
       const response = await fetch("/api/intake/draft", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: { ...form, _resumeStep: resumeStep } }),
+        body: `{"payload":${payloadSnapshot}}`,
       });
 
       const result = (await response.json().catch(() => null)) as
@@ -542,7 +560,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         | null;
 
       if (!response.ok) {
-        setDraftMessage(
+        setSaveError(
           result?.error ??
             "We could not save your progress. Please try again.",
         );
@@ -552,16 +570,37 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
       const savedAt = result?.updatedAt
         ? new Date(result.updatedAt).toLocaleString()
         : new Date().toLocaleString();
+      setSavedSnapshot(payloadSnapshot);
       setDraftMessage(`Progress saved ${savedAt}. You can sign back in later to continue.`);
       return true;
     } catch {
-      setDraftMessage(
+      setSaveError(
         "We could not save your progress. Please check your connection and try again.",
       );
     } finally {
-      setSavingDraft(false);
+      pendingSaves.current -= 1;
+      setSavingDraft(pendingSaves.current > 0);
     }
-  }
+    };
+    const task = saveQueue.current.then(run, run);
+    saveQueue.current = task;
+    return task;
+  }, [form, step]);
+
+  useEffect(() => {
+    if (!unsaved || !form.consent.volunteerAccessConsent || submitting || submitted) return;
+    const timer = window.setTimeout(() => { void saveDraft(step, true); }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [snapshot, unsaved, form.consent.volunteerAccessConsent, submitting, submitted, saveDraft, step]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!submitted && (unsaved || savingDraft || uploading)) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved, savingDraft, uploading, submitted]);
+  useEffect(() => { headingRef.current?.focus(); }, [step]);
+  useEffect(() => { if (submitError) errorRef.current?.focus(); }, [submitError]);
 
   async function continueToNextStep() {
     const nextStep = Math.min(step + 1, steps.length - 1);
@@ -574,6 +613,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
   }
 
   async function submit() {
+    if (step !== steps.length - 1 || submitting) return;
+    if (!window.confirm("Send this application to PCSN? You can cancel to keep reviewing your answers.")) return;
     if (uploading || !documentsLoaded) { setSubmitError("Please wait for saved documents to finish loading or uploading."); return; }
     const missing = missingRequiredItems()[0];
     if (missing) {
@@ -583,6 +624,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
       return;
     }
 
+    const financialCheck = financialSchema.safeParse(form.financial ?? {});
+    if (!financialCheck.success) { setSubmitError(financialCheck.error.issues.map(i=>`${i.path.join(" → ")}: ${i.message}`).join(" ")); return; }
     setSubmitting(true);
     setSubmitError("");
 
@@ -603,6 +646,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
           ? {
               ...member,
               name: `${form.patient.firstName} ${form.patient.lastName}`.trim(),
+              age: ageFromBirthDate(form.patient.dateOfBirth) ?? member.age,
+              isAdult: (ageFromBirthDate(form.patient.dateOfBirth) ?? member.age) >= 18,
               employmentStatus: form.patient.employmentStatus,
               incomeSources: form.patient.incomeSources,
           }
@@ -623,7 +668,9 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         return;
       }
 
+      await saveQueue.current;
       const body = new FormData();
+      body.append("submissionIntent", "patient-confirmed");
       body.append(
         "payload",
         JSON.stringify({
@@ -647,6 +694,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
       const response = await fetch("/api/intake", { method: "POST", body });
 
       if (response.ok) {
+        setSubmitted(true);
         router.replace("/intake/confirmation");
         return;
       }
@@ -668,41 +716,50 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
   }
 
   return (
-    <div className="grid gap-6">
+    <fieldset disabled={submitting} className="patient-intake m-0 grid min-w-0 gap-6 border-0 p-0">
+      <legend className="sr-only">Financial assistance application</legend>
       <div className="rounded-md border border-pine/20 bg-white p-4 text-sm leading-6 text-slate-700 shadow-soft">
         <p>
-          You can save this application and come back later from the same
-          account. Documents are encrypted and saved as soon as each upload succeeds. Wait for the saved confirmation before leaving.
+          After you give permission, your answers save automatically as you go. You can come back later using the same account. Documents are encrypted and saved as soon as each upload succeeds. Wait for the saved confirmation before leaving.
         </p>
         <p className="mt-2">
           <span className="font-semibold text-coral">*</span> Required field
         </p>
-        {draftMessage ? (
-          <p className="mt-2 font-semibold text-pine">{draftMessage}</p>
+        {draftMessage || unsaved || savingDraft ? (
+          <p role="status" aria-live="polite" className="mt-2 font-semibold text-pine">{savingDraft ? "Saving your answers… Please keep this page open." : unsaved ? "You have unsaved changes. Wait for confirmation or choose Save and finish later." : draftMessage}</p>
         ) : null}
       </div>
 
+      {saveError ? <p role="alert" className="rounded-md bg-red-50 p-4 text-red-800">{saveError} Your latest changes have not been saved.</p> : null}
       <details className="rounded-md border border-slate-200 bg-white p-4" open={step === 9}>
         <summary className="cursor-pointer font-semibold">Application checklist · {missingRequiredItems().length} required items remaining</summary>
         <ul className="mt-3 grid gap-2">{steps.slice(0, 9).map((name, index) => {
           const missing = missingRequiredItems().filter(([section]) => section === index);
-          return <li key={name}><button type="button" className="text-left text-sm underline" onClick={() => { setStep(index); setSubmitError(""); }}>{name}: {missing.length ? `${missing.length} items to finish` : "Required items complete"}</button>{missing.length ? <ul className="ml-5 list-disc text-sm text-slate-600">{missing.map(([, , message]) => <li key={message}>{message}</li>)}</ul> : null}</li>;
+          return <li key={name}><button type="button" className="text-left text-sm underline" disabled={savingDraft || uploading || submitting} onClick={() => { setStep(index); setSubmitError(""); }}>{name}: {missing.length ? `${missing.length} items to finish` : "Required items complete"}</button>{missing.length ? <ul className="ml-5 list-disc text-sm text-slate-600">{missing.map(([, , message]) => <li key={message}>{message}</li>)}</ul> : null}</li>;
         })}</ul>
       </details>
 
+      <nav aria-label="Application sections" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {steps.map((name, index) => <button key={name} type="button" aria-current={index === step ? "step" : undefined} disabled={savingDraft || uploading || submitting} onClick={() => { setStep(index); setSubmitError(""); }} className={`min-h-12 rounded-md border px-3 py-2 text-left text-sm ${index === step ? "border-pine bg-pine font-semibold text-white" : "border-slate-300 bg-white text-ink"}`}>{index + 1}. {name}</button>)}
+      </nav>
       <div className="grid gap-3">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-semibold">{steps[step]}</span>
+          <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold">{steps[step]}</h2>
           <span className="text-slate-500">
             Step {step + 1} of {steps.length}
           </span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-mist">
+        <div role="progressbar" aria-label="Application section" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={step + 1} aria-valuetext={`Step ${step + 1} of ${steps.length}: ${steps[step]}`} className="h-2 overflow-hidden rounded-full bg-mist">
           <div className="h-full bg-pine transition-all" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      {step === 9 ? <section className="grid gap-3 rounded-md bg-white p-5"><h2 className="text-xl font-semibold">Review before sending</h2><p>Check your answers using the section links above. Your request will be shared with PCSN volunteers when you submit.</p><dl className="grid gap-2 text-sm"><div><dt className="font-semibold">Patient</dt><dd>{form.patient.firstName} {form.patient.lastName}</dd></div><div><dt className="font-semibold">Contact</dt><dd>{form.patient.email} · {form.patient.phone}</dd></div><div><dt className="font-semibold">Treatment facilities</dt><dd>{form.hospital.treatmentFacilities?.join(", ") || "None entered"}</dd></div><div><dt className="font-semibold">Medications</dt><dd>{form.diagnosis.medications?.filter(Boolean).join(", ") || "None entered"}</dd></div><div><dt className="font-semibold">Selected documents</dt><dd>{savedDocuments.length} saved files will be included with this request.</dd></div></dl><p className="text-sm">Submitting a request does not guarantee eligibility or funding.</p></section> : null}
+      {step === 3 && (["hospital","both"].includes(form.assistanceType) || form.hospital.treatmentFacilities?.length) ? <>
+        <section className="grid gap-3 rounded-md bg-white p-4"><h3 className="text-xl font-semibold">Hospital billing information</h3><TextField label="Patient account number, if known" value={form.hospital.accountNumber ?? ""} onChange={e=>updateSection("hospital",{accountNumber:e.target.value})}/><TextField label="Guarantor number, if known" value={form.hospital.guarantorNumber ?? ""} onChange={e=>updateSection("hospital",{guarantorNumber:e.target.value})}/></section>
+        <FinancialDetails section="bills" value={form.financial} documents={savedDocuments} onChange={financial=>setForm(current=>({...current,financial}))}/>
+      </> : null}
+      {step === 6 && form.hospital.treatmentFacilities?.some(f=>/honorhealth/i.test(f)) ? <FinancialDetails section="household" value={form.financial} documents={savedDocuments} onChange={financial=>setForm(current=>({...current,financial}))}/> : null}
+      {step === 9 ? <IntakeReview form={form} documents={savedDocuments} /> : null}
 
       {step === 0 ? (
         <div className="grid gap-3">
@@ -736,10 +793,10 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         <div className="grid gap-4 md:grid-cols-2">
           <TextField required label={catalogQuestions["firstName"]?.name ?? "First name"} help={catalogQuestions["firstName"]?.help} value={form.patient.firstName} onChange={(e) => updateSection("patient", { firstName: e.target.value })} />
           <TextField required label={catalogQuestions["lastName"]?.name ?? "Last name"} help={catalogQuestions["lastName"]?.help} value={form.patient.lastName} onChange={(e) => updateSection("patient", { lastName: e.target.value })} />
-          <TextField required label={catalogQuestions["dob"]?.name ?? "Date of birth"} help={catalogQuestions["dob"]?.help} type="date" value={form.patient.dateOfBirth} onChange={(e) => updateSection("patient", { dateOfBirth: e.target.value })} />
+          <TextField required label={catalogQuestions["dob"]?.name ?? "Date of birth"} help={catalogQuestions["dob"]?.help} type="date" autoComplete="bday" max={new Date().toISOString().slice(0, 10)} value={form.patient.dateOfBirth} onChange={(e) => updateSection("patient", { dateOfBirth: e.target.value })} />
           <p className="text-sm text-slate-600 md:col-span-2">You do not need to provide a Social Security number to request help from PCSN. If a particular program needs it later, a volunteer will explain why and how to provide it securely.</p>
-          <TextField required label={catalogQuestions["phone"]?.name ?? "Phone"} help={catalogQuestions["phone"]?.help} value={form.patient.phone} onChange={(e) => updateSection("patient", { phone: e.target.value })} />
-          <TextField required label={catalogQuestions["email"]?.name ?? "Email"} help={catalogQuestions["email"]?.help} type="email" value={form.patient.email} onChange={(e) => updateSection("patient", { email: e.target.value })} />
+          <TextField required label={catalogQuestions["phone"]?.name ?? "Phone"} help={catalogQuestions["phone"]?.help} type="tel" autoComplete="tel" value={form.patient.phone} onChange={(e) => updateSection("patient", { phone: e.target.value })} />
+          <TextField required label={catalogQuestions["email"]?.name ?? "Email"} help={catalogQuestions["email"]?.help} type="email" autoComplete="email" value={form.patient.email} onChange={(e) => updateSection("patient", { email: e.target.value })} />
           <TextField required label={catalogQuestions["address"]?.name ?? "Address line 1"} help={catalogQuestions["address"]?.help} value={form.patient.addressLine1} onChange={(e) => updateSection("patient", { addressLine1: e.target.value })} />
           <TextField label="Address line 2" value={form.patient.addressLine2} onChange={(e) => updateSection("patient", { addressLine2: e.target.value })} />
           <TextField required label={catalogQuestions["city"]?.name ?? "City"} help={catalogQuestions["city"]?.help} value={form.patient.city} onChange={(e) => updateSection("patient", { city: e.target.value })} />
@@ -933,7 +990,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
           <div className="grid gap-4 md:grid-cols-2">
             <TextField required label="Monthly household income" inputMode="decimal" placeholder="Example: 4,250" value={form.household.monthlyIncome} onChange={(e) => updateSection("household", { monthlyIncome: e.target.value })} />
             <TextField required label="Annual household income" inputMode="decimal" placeholder="Example: 51,000" value={form.household.annualIncome} onChange={(e) => updateSection("household", { annualIncome: e.target.value })} />
-            <TextField required label="Household size" type="number" value={form.household.householdSize} onChange={(e) => updateSection("household", { householdSize: Number(e.target.value) })} />
+            <TextField required label="Household size" type="number" min={1} step={1} inputMode="numeric" value={form.household.householdSize} onChange={(e) => updateSection("household", { householdSize: Number(e.target.value) })} />
             <label className="grid gap-2 text-sm">
               <span className="font-medium text-ink">
                 Patient employment status<span className="ml-1 text-coral">*</span>
@@ -968,6 +1025,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
                 ? {
                     ...member,
                     name: `${form.patient.firstName} ${form.patient.lastName}`.trim(),
+              age: ageFromBirthDate(form.patient.dateOfBirth) ?? member.age,
+              isAdult: (ageFromBirthDate(form.patient.dateOfBirth) ?? member.age) >= 18,
                     employmentStatus: form.patient.employmentStatus,
                     incomeSources: form.patient.incomeSources,
                   }
@@ -977,9 +1036,10 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
                 <div className="grid gap-4 md:grid-cols-2">
                   <TextField required label="Name" value={displayMember.name} disabled={isPatientMember} onChange={(e) => updateMember(index, { name: e.target.value })} />
                   <TextField required label="Relationship" value={displayMember.relationship} disabled={isPatientMember} onChange={(e) => updateMember(index, { relationship: e.target.value })} />
-                  <TextField required label="Age" type="number" value={displayMember.age} onChange={(e) => updateMember(index, { age: Number(e.target.value), isAdult: Number(e.target.value) >= 18 })} />
+                  {!isPatientMember ? <><TextField label="Date of birth, if known" type="date" value={member.dateOfBirth ?? ""} onChange={e=>updateMember(index,{dateOfBirth:e.target.value,...(ageFromBirthDate(e.target.value) !== undefined ? {age:ageFromBirthDate(e.target.value)!,isAdult:ageFromBirthDate(e.target.value)!>=18} : {})})}/>{([["dependent","Is this person your dependent?"],["sharesFinances","Do you share finances?"],["supportsPatient","Does this person financially support you?"],["supportedByPatient","Do you financially support this person?"]] as const).map(([key,label])=><Answer key={key} label={label} value={member[key]} onChange={v=>updateMember(index,{[key]:v})}/>)}</> : null}
+                  <TextField required label="Age" type="number" disabled={isPatientMember} help={isPatientMember ? "Calculated from your date of birth in Contact." : undefined} value={isPatientMember ? ageFromBirthDate(form.patient.dateOfBirth) ?? "" : displayMember.age} onChange={(e) => updateMember(index, { age: Number(e.target.value), isAdult: Number(e.target.value) >= 18 })} />
                   <label className="flex items-center gap-3 text-sm">
-                    <input type="checkbox" checked={member.isAdult} onChange={(e) => updateMember(index, { isAdult: e.target.checked })} />
+                    <input type="checkbox" disabled={isPatientMember} checked={displayMember.isAdult} onChange={(e) => updateMember(index, { isAdult: e.target.checked })} />
                     Adult household member
                   </label>
                   {displayMember.isAdult ? (
@@ -1037,6 +1097,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         </div>
       ) : null}
 
+      {step === 7 ? <p className="rounded-md bg-white p-4">Uploads are optional when sending your request. Share documents relevant to your needs: medical bills for bill assistance, a medication list for prescription costs, and utility bills for energy assistance. You do not need every document listed. A volunteer will tell you if a specific document is needed. Bank statements should include every page, not only a balance screenshot.</p> : null}
       {step === 7 ? (
         <div className="grid gap-4 md:grid-cols-2">
           {visibleDocumentTypes.map((documentType) => (
@@ -1049,7 +1110,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
                 <span className="text-sm text-slate-500">
                   {savedDocuments.filter(d => d.document_type === documentType).length
                     ? `${savedDocuments.filter(d => d.document_type === documentType).length} file(s) saved`
-                    : "Upload PDF, JPG, or PNG"}
+                    : "Choose PDF, JPG, or PNG · maximum 4 MB per file"}
                 </span>
               </span>
             </label>
@@ -1059,7 +1120,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
 
       {uploading ? <p role="status">Saving document securely. Please keep this page open.</p> : null}
       {documentError ? <p role="alert" className="text-red-700">{documentError}</p> : null}
-      {step === 7 || step === 9 ? <ul className="text-sm">{savedDocuments.map(document => <li key={document.id}>{document.original_filename} — Saved <button type="button" className="ml-2 underline" disabled={uploading || submitting} onClick={() => void removeDocument(document.id)}>Remove</button></li>)}</ul> : null}
+      {step === 7 || step === 9 ? <ul className="text-sm">{savedDocuments.map(document => <li key={document.id}>{document.original_filename} — Saved <button aria-label={`Remove ${document.original_filename}`} type="button" className="ml-2 underline" disabled={uploading || submitting} onClick={() => void removeDocument(document.id)}>Remove</button></li>)}</ul> : null}
 
       {step === 8 ? (
         <div className="grid gap-4">
@@ -1107,6 +1168,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         </div>
       ) : null}
 
+      {step === 0 || step === 8 ? <PatientPrivacyNotice /> : null}
       {step === 0 ? <label className="flex items-start gap-3 rounded-md border border-pine/30 bg-pine/5 p-4 text-sm leading-6">
         <input
           className="mt-1"
@@ -1126,8 +1188,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         </span>
       </label> : <p className="text-sm text-slate-600">Volunteer access and contact: {form.consent.volunteerAccessConsent ? "Permission given" : "Not yet given"}. <button type="button" className="underline" onClick={() => setStep(0)}>Review permission</button></p>}
 
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="secondary" disabled={step === 0} onClick={() => setStep((current) => Math.max(current - 1, 0))}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="secondary" disabled={step === 0 || savingDraft || uploading || submitting} onClick={() => setStep((current) => Math.max(current - 1, 0))}>
           Back
         </Button>
         <div className="flex flex-wrap justify-end gap-3">
@@ -1139,13 +1201,13 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
             {savingDraft ? "Saving..." : "Save and finish later"}
           </Button>
           {step < steps.length - 1 ? (
-            <Button onClick={() => void continueToNextStep()} disabled={savingDraft || uploading}>
+            <Button key="continue" type="button" onClick={() => void continueToNextStep()} disabled={savingDraft || uploading}>
               Continue
             </Button>
           ) : (
             <Button
               disabled={submitting || savingDraft || uploading || !documentsLoaded}
-              onClick={submit}
+              key="submit" type="button" onClick={submit}
             >
               {submitting ? "Submitting..." : "Submit application"}
             </Button>
@@ -1155,11 +1217,13 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
       {submitError ? (
         <div
           role="alert"
+          ref={errorRef}
+          tabIndex={-1}
           className="rounded-md border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800"
         >
           {submitError}
         </div>
       ) : null}
-    </div>
+    </fieldset>
   );
 }

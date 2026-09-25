@@ -1,4 +1,5 @@
 "use client";
+import {prepareHonorHealthDraft} from "@/lib/catalog/honorhealth";
 import { useState } from "react";
 import {
   blankEntry,
@@ -747,6 +748,7 @@ export function CatalogEditor({
             placeholder="Example: Updated Mayo application link after checking the official website"
           />
         </label>
+        <button type="button" className="min-h-11 rounded border p-3" disabled={busy} onClick={()=>{setEntries(prepareHonorHealthDraft(entries));setNote("Prepare HonorHealth route and deduplicated requirements for verification. No publication yet.");}}>Prepare HonorHealth draft for review</button>
         <div className="flex gap-3">
           <button
             disabled={busy || !note.trim()}
