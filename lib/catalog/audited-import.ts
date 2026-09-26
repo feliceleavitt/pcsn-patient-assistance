@@ -103,7 +103,10 @@ export async function importAuditedCatalogs(
       applicationUrl: a?.source || row[programHeader.col + 12],
       applicationId: id,
       submissionInstructions: instructions,
-      enabled: false,
+      // Audited programs may be previewed by volunteers; lack of public
+      // executable criteria keeps them in manual review rather than implying eligibility.
+      enabled: true,
+      manualOnly: true,
     });
   }
   const questionRows = rows(sheet(master, "Master Intake Fields"));
@@ -160,8 +163,9 @@ export async function importAuditedCatalogs(
     const routeId = row[routeHeader.col];
     const programName = row[routeHeader.col + 2];
     if (!routeId || !programName) continue;
-    const match = [...entries.values()].find((entry) => entry.kind === "program" && entry.name === programName);
-    if (match) entries.set(match.id, { ...match, sourceNotes: [match.sourceNotes, `Route ID: ${routeId}`].filter(Boolean).join(" ") });
+    const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const match = [...entries.values()].find((entry) => entry.kind === "program" && (normalize(entry.name) === normalize(programName) || normalize(entry.name).includes(normalize(programName)) || normalize(programName).includes(normalize(entry.name))));
+    if (match) entries.set(match.id, { ...match, routeId, sourceNotes: match.sourceNotes });
   }
   const parsed = catalogSchema.parse([...entries.values()]);
   return { entries: parsed, counts: parsed.reduce((a, e) => ({ ...a, [e.kind]: (a[e.kind] ?? 0) + 1 }), {} as Record<string, number>), warnings: ["Imported as a disabled draft. Audited verification metadata was preserved. No program was published or enabled."] };

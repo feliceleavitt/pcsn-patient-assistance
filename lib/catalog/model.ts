@@ -104,6 +104,7 @@ export const entrySchema = z
     applicationId: text,
     applicationUrl: link,
     actionType: z.enum(["helps", "completes", "refers"]),
+    routeId: z.union([id, z.literal("")]).default(""),
     // Defaults preserve every already-published catalog revision.
     routeActionType: z.enum(routeActionTypes).default("VOLUNTEER_FOLLOW_UP"),
     verificationStatus: z.enum(verificationStatuses).default("MANUAL_REVIEW_REQUIRED"),
@@ -169,6 +170,7 @@ export function blankEntry(kind: Kind, entryId: string): Entry {
     applicationId: "",
     applicationUrl: "",
     actionType: "helps",
+    routeId: "",
     routeActionType: "VOLUNTEER_FOLLOW_UP",
     verificationStatus: "MANUAL_REVIEW_REQUIRED",
     lastVerifiedAt: "",
@@ -227,6 +229,11 @@ export function publicationErrors(
   const factKeys = new Set(
     active.filter((e) => e.kind === "question").map((e) => e.factKey),
   );
+  const routeIds = new Set<string>();
+  for (const p of active.filter((e) => e.kind === "program")) {
+    if (p.routeId && routeIds.has(p.routeId)) errors.push(`${p.name}: duplicate route ID ${p.routeId}`);
+    if (p.routeId) routeIds.add(p.routeId);
+  }
   const checkRef = (owner: Entry, ids: string[], kind: Kind) =>
     ids.forEach((id) => {
       if (!active.some((e) => e.id === id && e.kind === kind))

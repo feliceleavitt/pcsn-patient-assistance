@@ -5,6 +5,7 @@ import type { Entry } from "./model";
 export type MatchState = "MATCHED" | "POSSIBLE" | "MANUAL_REVIEW";
 export type PreviewRoute = {
   programId: string;
+  routeId: string;
   program: string;
   actionType: Entry["routeActionType"];
   matchState: MatchState;
@@ -35,6 +36,6 @@ export function routingPreview(entries: Entry[], profile: Profile): PreviewRoute
       ...(program.billingEntityRequired && !known(profile, "billingEntity") ? ["Confirm the entity that issued the bill before routing."] : []),
       ...(partial ? ["Current source is partially verified; volunteer review is required."] : []),
     ];
-    return [{ programId: program.id, program: program.name, actionType: program.routeActionType, matchState, verificationStatus: program.verificationStatus, volunteerOnly: partial || program.implementationHold, providerRequired: program.providerRequired, sourceUrl: program.sourceUrl, rationale }];
+    return [{ programId: program.id, routeId: program.routeId, program: program.name, actionType: program.routeActionType, matchState, verificationStatus: program.verificationStatus, volunteerOnly: partial || program.implementationHold, providerRequired: program.providerRequired, sourceUrl: program.sourceUrl, rationale }];
   });
 }
