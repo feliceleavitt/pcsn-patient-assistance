@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+import path from "node:path";
+import JSZip from "jszip";
 import { blankEntry, catalogSchema, type Entry } from "./model";
 
 type Audit = { status: string; source: string; secondary: string; verified: string; note: string; safe: string };
@@ -29,6 +31,24 @@ function headerIndex(data: string[][], header: string) {
   if (row < 0) throw new Error(`Could not find ${header} header.`);
   return { row, col: data[row].indexOf(header) };
 }
+async function normalizeAuditedWorkbook(buffer: Buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  let total = 0;
+  for (const file of Object.values(zip.files)) {
+    total += (file as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0;
+    if (total > 25_000_000) throw new Error("Audited workbook exceeds the supported expanded size.");
+    if (file.dir || !/\.(xml|rels)$/.test(file.name)) continue;
+    let xml = await file.async("string");
+    if (file.name.endsWith(".rels")) {
+      const owner = file.name.replace("_rels/", "").replace(/\.rels$/, "");
+      xml = xml.replace(/Target="\/([^" ]+)"/g, (_, target) => `Target="${path.posix.relative(path.posix.dirname(owner), target)}"`);
+    }
+    const prefix = xml.match(/xmlns:([A-Za-z0-9_]+)="http:\/\/schemas.openxmlformats.org\/spreadsheetml\/2006\/main"/)?.[1];
+    if (prefix) xml = xml.replace(new RegExp(`(<\\/?)(?:${prefix}):`, "g"), "$1").replace(new RegExp(`xmlns:${prefix}=`, "g"), "xmlns=");
+    zip.file(file.name, xml);
+  }
+  return zip.generateAsync({ type: "nodebuffer" });
+}
 
 /**
  * Converts audited workbooks to draft entries. It never stamps, clears, or
@@ -42,7 +62,7 @@ export async function importAuditedCatalogs(
 ) {
   const [master, routeBook, auditBook] = await Promise.all([masterBytes, routeBytes, auditBytes].map(async (bytes) => {
     const book = new ExcelJS.Workbook();
-    await book.xlsx.load(bytes as never);
+    await book.xlsx.load((await normalizeAuditedWorkbook(bytes)) as never);
     return book;
   }));
   const auditRows = rows(sheet(auditBook, "Audit Log"));
