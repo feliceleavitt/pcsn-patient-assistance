@@ -18,7 +18,8 @@ type AuditAction =
   | "patient_sign_packet"
   | "request_signature"
   | "create_packet"
-  | "update_packet";
+  | "update_packet"
+  | "create_program_case";
 
 export async function recordAuditEvent(input: {
   actorId: string;

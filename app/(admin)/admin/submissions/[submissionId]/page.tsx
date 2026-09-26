@@ -95,7 +95,7 @@ export default async function SubmissionDetailPage({
           </div>
         </div>
 
-        <AssistancePlan profile={adaptSubmission(submission)} />
+        <AssistancePlan profile={adaptSubmission(submission)} submissionId={submissionId} />
         {demoMode ? <Link href="/admin/assistance-plan-preview" className="text-sm text-pine underline">Explore synthetic Assistance Plan examples (development only)</Link> : null}
 
         <ApplicationEditor submissionId={submissionId} initial={{
