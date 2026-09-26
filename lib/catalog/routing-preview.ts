@@ -18,7 +18,15 @@ export type PreviewRoute = {
 
 /** Pure, read-only screening. This function does not create cases or change a profile. */
 export function routingPreview(entries: Entry[], profile: Profile): PreviewRoute[] {
+  const drugs = new Map(entries.filter((entry) => entry.kind === "drug").map((entry) => [entry.id, entry.name.toLowerCase()]));
+  const medications = known(profile, "medications")?.toLowerCase().split(/\s*;\s*/).filter(Boolean);
   return entries.filter((entry) => entry.kind === "program" && entry.enabled).flatMap((program) => {
+    // A known medication list limits only explicitly drug-mapped routes. If it
+    // is absent, retain the route for volunteer review rather than infer a drug.
+    if (program.drugIds.length && medications && !program.drugIds.some((id) => {
+      const drug = drugs.get(id);
+      return drug && medications.includes(drug);
+    })) return [];
     const rules = program.rules.filter((rule) => rule.purpose === "surface");
     const values = rules.map((rule) => ruleMatches(profile, rule));
     const hardFailed = program.eligibilityMode === "hard_rule" && values.some((v) => v === false);
@@ -26,7 +34,7 @@ export function routingPreview(entries: Entry[], profile: Profile): PreviewRoute
     const unknown = values.some((v) => v === null);
     const supported = rules.length > 0 && values.every((v) => v === true);
     const partial = program.verificationStatus === "PARTIALLY_VERIFIED";
-    const manual = program.implementationHold || program.eligibilityMode === "manual_review" || partial || unknown;
+    const manual = program.manualOnly || program.implementationHold || program.eligibilityMode === "manual_review" || partial || unknown || (program.billingEntityRequired && !known(profile, "billingEntity"));
     const matchState: MatchState = supported && !manual ? "MATCHED" : manual ? "MANUAL_REVIEW" : "POSSIBLE";
     // Programs without executable rules are never called a match. They remain volunteer review routes.
     if (!rules.length && !program.manualOnly) return [];
@@ -36,6 +44,6 @@ export function routingPreview(entries: Entry[], profile: Profile): PreviewRoute
       ...(program.billingEntityRequired && !known(profile, "billingEntity") ? ["Confirm the entity that issued the bill before routing."] : []),
       ...(partial ? ["Current source is partially verified; volunteer review is required."] : []),
     ];
-    return [{ programId: program.id, routeId: program.routeId, program: program.name, actionType: program.routeActionType, matchState, verificationStatus: program.verificationStatus, volunteerOnly: partial || program.implementationHold, providerRequired: program.providerRequired, sourceUrl: program.sourceUrl, rationale }];
+    return [{ programId: program.id, routeId: program.routeId, program: program.name, actionType: program.routeActionType, matchState, verificationStatus: program.verificationStatus, volunteerOnly: program.manualOnly || partial || program.implementationHold, providerRequired: program.providerRequired, sourceUrl: program.sourceUrl, rationale }];
   });
 }

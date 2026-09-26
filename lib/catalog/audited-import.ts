@@ -12,7 +12,8 @@ const action = (instructions: string, hold: boolean): Entry["routeActionType"] =
   const v = instructions.toLowerCase();
   if (/financial counselor/.test(v)) return "CONTACT_FINANCIAL_COUNSELOR";
   if (/provider.*submit|provider-submitted|provider enrollment/.test(v)) return "PROVIDER_SUBMISSION_REQUIRED";
-  if (/call/.test(v)) return "CALL_FOR_SCREENING";
+  if (/call|contact case manager/.test(v)) return "CALL_FOR_SCREENING";
+  if (/patient and provider complete/.test(v)) return "ENROLL";
   if (/apply/.test(v) && !hold) return "APPLY";
   return "VIEW_PROGRAM";
 };
@@ -74,14 +75,45 @@ export async function importAuditedCatalogs(
     audits.set(id, { status: row[auditHeader.col + 7], source: row[auditHeader.col + 8], secondary: row[auditHeader.col + 9], verified: row[auditHeader.col + 11], note: [row[auditHeader.col + 12], row[auditHeader.col + 15]].filter(Boolean).join(" "), safe: row[auditHeader.col + 14] });
   }
   const entries = new Map(existing.map((entry) => [entry.id, entry]));
+  const routeRows = rows(sheet(routeBook, "Assistance Routes"));
+  const routeHeader = headerIndex(routeRows, "Route ID");
+  // These aliases link the audited route catalog's human-readable route names
+  // to the stable Program IDs in the master inventory. They avoid inventing
+  // programs when route and inventory labels intentionally differ.
+  const routeProgramIds: Record<string, string> = {
+    B10: "MED-ONVIDA",
+    B11: "NAV-DHO-FIN",
+    C16: "MEDCOST-LILLY",
+    C17: "MEDCOST-EMD-COVERONE",
+    C18: "MEDCOST-TEVA-CARES",
+    C19: "MEDCOST-AUTOLUS-AUCATZYL",
+    C20: "MEDCOST-AVEO-PAP",
+    C21: "MEDCOST-AVEO-COPAY",
+    C22: "MEDCOST-AVEO-BRIDGE",
+    C23: "MEDCOST-AVEO-QUICKSTART",
+    C24: "MEDCOST-GERON-RYTELO",
+  };
+  const routeDetails = new Map<string, { routeId: string; instructions: string; requiredData: string }>();
+  for (const row of routeRows.slice(routeHeader.row + 1)) {
+    const routeId = row[routeHeader.col];
+    const programId = routeProgramIds[routeId];
+    if (programId) routeDetails.set(programId, { routeId, requiredData: row[routeHeader.col + 5], instructions: row[routeHeader.col + 6] });
+  }
   const programRows = rows(sheet(master, "Program Catalog"));
   const programHeader = headerIndex(programRows, "Program ID");
   for (const row of programRows.slice(programHeader.row + 1)) {
     const id = row[programHeader.col];
     if (!id) continue;
     const a = audits.get(id);
-    const instructions = row[programHeader.col + 9];
+    const instructions = routeDetails.get(id)?.instructions || row[programHeader.col + 9];
+    const requiredData = routeDetails.get(id)?.requiredData || row[programHeader.col + 5];
     const hold = a?.safe === "No" || /do not expose|manual review|information only/i.test(a?.note ?? "");
+    // The audited route catalog explicitly limits this route to commercial
+    // insurance. It is the only imported hard exclusion; all other criteria
+    // remain screening facts until a current source supports a hard rule.
+    const rules = id === "MEDCOST-AVEO-COPAY"
+      ? [{ fact: "insurance", operator: "equals" as const, value: "commercial", purpose: "surface" as const, explanation: "Current AVEO Copay Assistance is limited to commercially insured patients." }]
+      : [];
     const current = entries.get(id);
     entries.set(id, {
       ...(current ?? blankEntry("program", id)), id, kind: "program",
@@ -96,13 +128,14 @@ export async function importAuditedCatalogs(
       verificationStatus: status(a?.status ?? ""),
       sourceNotes: a?.note ?? "",
       implementationHold: hold,
-      eligibilityMode: hold || a?.status === "PARTIALLY VERIFIED" ? "manual_review" : "screening_only",
-      providerRequired: /provider/.test(`${instructions} ${a?.note ?? ""}`.toLowerCase()),
-      billingEntityRequired: /billing entity|medical bill|account/.test(`${row[programHeader.col + 5]} ${a?.note ?? ""}`.toLowerCase()),
+      eligibilityMode: rules.length ? "hard_rule" : hold || a?.status === "PARTIALLY VERIFIED" ? "manual_review" : "screening_only",
+      providerRequired: /provider.*(?:submit|enrollment|required)|patient and provider complete/.test(`${instructions} ${a?.note ?? ""}`.toLowerCase()),
+      billingEntityRequired: /billing entity|medical bill|account|bill\/entity/.test(`${requiredData} ${a?.note ?? ""}`.toLowerCase()),
       routeActionType: action(instructions, hold),
       applicationUrl: a?.source || row[programHeader.col + 12],
       applicationId: id,
       submissionInstructions: instructions,
+      rules,
       // Audited programs may be previewed by volunteers; lack of public
       // executable criteria keeps them in manual review rather than implying eligibility.
       enabled: true,
@@ -133,19 +166,25 @@ export async function importAuditedCatalogs(
   }
   const drugRows = rows(sheet(master, "Oncology Drug PAP"));
   const drugHeader = headerIndex(drugRows, "Brand drug");
+  const drugPrograms = new Map<string, string>();
   for (const row of drugRows.slice(drugHeader.row + 1)) {
     const name = row[drugHeader.col];
     if (!name) continue;
     const id = `drug-${slug(name)}`;
-    if (entries.has(id)) continue;
-    entries.set(id, { ...blankEntry("drug", id), name, organization: row[drugHeader.col + 3], sourceUrl: row[drugHeader.col + 5], enabled: false });
+    if (!entries.has(id)) entries.set(id, { ...blankEntry("drug", id), name, organization: row[drugHeader.col + 3], sourceUrl: row[drugHeader.col + 5], enabled: false });
+    drugPrograms.set(id, row[drugHeader.col + 4]);
   }
-  // Only audited manufacturer programs receive automatic product links. Broad
-  // manufacturer-name matching is intentionally avoided for legacy routes.
-  for (const program of [...entries.values()].filter((entry) => entry.kind === "program" && /^MEDCOST-/.test(entry.id))) {
-    const org = program.organization.toLowerCase();
-    const drugIds = [...entries.values()].filter((entry) => entry.kind === "drug" && entry.organization.toLowerCase() === org).map((entry) => entry.id);
-    entries.set(program.id, { ...program, drugIds: [...new Set([...program.drugIds, ...drugIds])] });
+  // Product links come from the audited workbook's program column, not broad
+  // manufacturer-name matching. This preserves product-specific support routes
+  // and keeps AVEO's four distinct routes associated with FOTIVDA.
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const [drugId, label] of drugPrograms) {
+    if (!label) continue;
+    const programs = [...entries.values()].filter((entry) => entry.kind === "program" && (
+      normalize(entry.name) === normalize(label) ||
+      (normalize(label).includes("aveoace") && /^MEDCOST-AVEO-/.test(entry.id))
+    ));
+    for (const program of programs) entries.set(program.id, { ...program, drugIds: [...new Set([...program.drugIds, drugId])] });
   }
   const facilityRows = rows(sheet(master, "AZ Facilities"));
   const facilityHeader = headerIndex(facilityRows, "Facility");
@@ -156,16 +195,18 @@ export async function importAuditedCatalogs(
     if (entries.has(id)) continue;
     entries.set(id, { ...blankEntry("facility", id), name, organization: row[facilityHeader.col + 3], location: [row[facilityHeader.col + 1], row[facilityHeader.col + 2]].filter(Boolean).join(", "), sourceUrl: row[facilityHeader.col + 6], enabled: false });
   }
+  const facilityProgramIds: Record<string, string[]> = {
+    "MED-ONVIDA": ["facility-yuma-regional-medical-center-onvida-health"],
+    "NAV-DHO-FIN": ["facility-desert-hematology-oncology"],
+  };
+  for (const [programId, facilityIds] of Object.entries(facilityProgramIds)) {
+    const program = entries.get(programId);
+    if (program?.kind === "program") entries.set(programId, { ...program, facilityIds: facilityIds.filter((id) => entries.get(id)?.kind === "facility") });
+  }
   // Route rows enrich the matching Program ID where present; no duplicate route program is created.
-  const routeRows = rows(sheet(routeBook, "Assistance Routes"));
-  const routeHeader = headerIndex(routeRows, "Route ID");
-  for (const row of routeRows.slice(routeHeader.row + 1)) {
-    const routeId = row[routeHeader.col];
-    const programName = row[routeHeader.col + 2];
-    if (!routeId || !programName) continue;
-    const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const match = [...entries.values()].find((entry) => entry.kind === "program" && (normalize(entry.name) === normalize(programName) || normalize(entry.name).includes(normalize(programName)) || normalize(programName).includes(normalize(entry.name))));
-    if (match) entries.set(match.id, { ...match, routeId, sourceNotes: match.sourceNotes });
+  for (const [programId, detail] of routeDetails) {
+    const program = entries.get(programId);
+    if (program?.kind === "program") entries.set(programId, { ...program, routeId: detail.routeId });
   }
   const parsed = catalogSchema.parse([...entries.values()]);
   return { entries: parsed, counts: parsed.reduce((a, e) => ({ ...a, [e.kind]: (a[e.kind] ?? 0) + 1 }), {} as Record<string, number>), warnings: ["Imported as a disabled draft. Audited verification metadata was preserved. No program was published or enabled."] };
