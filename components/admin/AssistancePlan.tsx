@@ -1,5 +1,6 @@
 import { readPublishedCatalog } from "@/lib/catalog/store";
 import { catalogPrograms, withCatalogQuestions } from "@/lib/catalog/runtime";
+import { routingPreview } from "@/lib/catalog/routing-preview";
 import {
   buildPlan,
   researchVersion,
@@ -65,6 +66,7 @@ export async function AssistancePlan({
     );
   }
   const profile = withCatalogQuestions(originalProfile, catalog.entries);
+  const preview = routingPreview(catalog.entries, profile);
   const plan = buildPlan(
     profile,
     catalogPrograms(catalog.entries, profile, catalog.version),
@@ -101,6 +103,11 @@ export async function AssistancePlan({
         overall application status below, including “approved,” does not approve
         any individual program.
       </p>
+      <details className="rounded-md border border-pine/20 bg-pine/5 p-4">
+        <summary className="cursor-pointer font-semibold">Audited routing preview ({preview.length})</summary>
+        <p className="mt-2 text-sm text-slate-600">This is screening only. It does not create a program case, submit an application, contact an organization, or change patient data.</p>
+        {!preview.length ? <p className="mt-2 text-sm">No audited route is ready to review from the currently known facts.</p> : <ul className="mt-3 grid gap-3">{preview.map((route) => <li key={route.programId} className="rounded border bg-white p-3 text-sm"><strong>{route.program}</strong><p>{route.matchState.replaceAll("_", " ")} · {route.actionType.replaceAll("_", " ")}</p><p>{route.volunteerOnly ? "Volunteer/admin review only." : "Volunteer review required before external action."}</p>{route.providerRequired ? <p>Provider action or consent remains outstanding.</p> : null}<a className="text-pine underline" href={route.sourceUrl} target="_blank" rel="noreferrer">Official source</a></li>)}</ul>}
+      </details>
       <p className="rounded-md bg-paper p-3 text-sm">
         Assignments, submission dates, decisions and follow-up dates are not
         saved in this preview. External progress is unknown until a volunteer

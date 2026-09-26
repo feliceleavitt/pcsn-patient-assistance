@@ -35,6 +35,27 @@ export const kinds = [
   "document",
 ] as const;
 export type Kind = (typeof kinds)[number];
+export const routeActionTypes = [
+  "APPLY",
+  "ENROLL",
+  "PROVIDER_SUBMISSION_REQUIRED",
+  "CALL_FOR_SCREENING",
+  "CONTACT_FINANCIAL_COUNSELOR",
+  "VIEW_PROGRAM",
+  "VOLUNTEER_FOLLOW_UP",
+  "EXTERNAL_FOUNDATION_SEARCH",
+] as const;
+export type RouteActionType = (typeof routeActionTypes)[number];
+export const verificationStatuses = [
+  "VERIFIED",
+  "VERIFIED_WITH_CORRECTION",
+  "PARTIALLY_VERIFIED",
+  "NOT_PUBLICLY_VERIFIABLE",
+  "OUTDATED",
+  "CONFLICTING_SOURCES",
+  "MANUAL_REVIEW_REQUIRED",
+] as const;
+export const eligibilityModes = ["hard_rule", "screening_only", "manual_review"] as const;
 export const ruleSchema = z
   .object({
     fact: id,
@@ -83,6 +104,19 @@ export const entrySchema = z
     applicationId: text,
     applicationUrl: link,
     actionType: z.enum(["helps", "completes", "refers"]),
+    // Defaults preserve every already-published catalog revision.
+    routeActionType: z.enum(routeActionTypes).default("VOLUNTEER_FOLLOW_UP"),
+    verificationStatus: z.enum(verificationStatuses).default("MANUAL_REVIEW_REQUIRED"),
+    lastVerifiedAt: z.string().default(""),
+    sourceVersion: text.default(""),
+    implementationHold: z.boolean().default(false),
+    eligibilityMode: z.enum(eligibilityModes).default("screening_only"),
+    providerRequired: z.boolean().default(false),
+    billingEntityRequired: z.boolean().default(false),
+    drugIds: z.array(id).max(100).default([]),
+    facilityIds: z.array(id).max(100).default([]),
+    secondarySourceUrl: link.default(""),
+    sourceNotes: text.default(""),
     questionIds: z.array(id).max(200),
     documentIds: z.array(id).max(100),
     rules: z.array(ruleSchema).max(100),
@@ -135,6 +169,18 @@ export function blankEntry(kind: Kind, entryId: string): Entry {
     applicationId: "",
     applicationUrl: "",
     actionType: "helps",
+    routeActionType: "VOLUNTEER_FOLLOW_UP",
+    verificationStatus: "MANUAL_REVIEW_REQUIRED",
+    lastVerifiedAt: "",
+    sourceVersion: "",
+    implementationHold: false,
+    eligibilityMode: "screening_only",
+    providerRequired: false,
+    billingEntityRequired: false,
+    drugIds: [],
+    facilityIds: [],
+    secondarySourceUrl: "",
+    sourceNotes: "",
     questionIds: [],
     documentIds: [],
     rules: [],
