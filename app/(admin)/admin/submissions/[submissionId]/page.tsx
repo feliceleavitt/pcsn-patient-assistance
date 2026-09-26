@@ -58,6 +58,7 @@ export default async function SubmissionDetailPage({
   const treatmentFacilities = Array.isArray(submission.treatment_facilities)
     ? (submission.treatment_facilities as string[])
     : [];
+  const billingEntities = Array.isArray(submission.billing_entities) ? submission.billing_entities as Array<{name?: string; catalogId?: string; accountNumber?: string; billType?: string; documentId?: string; matchState?: string}> : [];
   const insurance = (submission.insurance_details ?? {}) as Record<string, unknown>;
   const mayo = (insurance.mayoFinancialAssistance ?? null) as Record<string, unknown> | null;
   const ssn = (insurance.socialSecurityNumber ?? null) as Record<string, unknown> | null;
@@ -160,6 +161,7 @@ export default async function SubmissionDetailPage({
                     : "None selected"}
                 </dd>
               </div>
+              <div className="md:col-span-2"><dt className="text-slate-500">Bills reported by patient</dt><dd>{billingEntities.length ? <ul className="grid gap-1">{billingEntities.map((entity, index) => <li key={`${entity.name}-${index}`}>{entity.name || "Unnamed bill"}{entity.billType ? ` — ${entity.billType}` : ""}{entity.accountNumber ? ` · account ${entity.accountNumber}` : ""}{entity.matchState === "matched" ? " · catalog match confirmed" : entity.matchState === "ambiguous" ? " · needs biller confirmation" : " · no catalog match"}{entity.documentId ? " · bill upload linked" : ""}</li>)}</ul> : "None provided"}</dd></div>
               <div>
                 <dt className="text-slate-500">Annual income</dt>
                 <dd>${Number(submission.annual_income).toLocaleString()}</dd>

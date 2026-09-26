@@ -44,7 +44,7 @@ export const profileSections = [
     ],
   },
   { label: "Diagnosis and treatment", keys: ["diagnosis", "treatment"] },
-  { label: "Facilities and providers", keys: ["facilities", "provider"] },
+  { label: "Facilities and providers", keys: ["facilities", "billingEntity", "provider"] },
   {
     label: "Insurance",
     keys: ["insurance", "hasMedicalInsurance", "employerInsuranceAvailable"],
@@ -131,6 +131,15 @@ export function adaptSubmission(input: unknown): Profile {
       strings(s.treatment_facilities).join("; "),
     ],
   ]);
+  const billers = Array.isArray(s.billing_entities) ? s.billing_entities.map(row) : [];
+  const billerNames = billers.map((b) => text(b.name)).filter((value): value is string => Boolean(value));
+  const billerStates = billers.map((b) => text(b.matchState));
+  facts.billingEntity = {
+    label: "Bill issuer",
+    state: !billerNames.length ? "unknown" : billerStates.includes("ambiguous") ? "conflict" : "known",
+    evidence: billerNames.map((value, index) => ({ source: `submissions.billing_entities[${index}].name`, value })),
+    note: billerStates.includes("ambiguous") ? "The biller could not be confidently matched; volunteer confirmation is required." : "Entered from the patient’s bill; this is separate from a treatment location.",
+  };
   add("assistance", "Requested assistance", [
     ["submissions.assistance_type", s.assistance_type],
   ]);

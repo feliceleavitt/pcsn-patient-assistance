@@ -8,6 +8,7 @@ import {
 import { encryptBuffer } from "@/lib/security/crypto";
 import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
+import { normalizeBillingEntity } from "@/lib/billing-entities";
 
 const payloadSchema = z.object({
   assistanceType: z.enum(["manufacturer", "hospital", "both"]),
@@ -61,6 +62,7 @@ const payloadSchema = z.object({
     accountNumber: z.string().optional(),
     guarantorNumber: z.string().optional(),
     treatmentFacilities: z.array(z.string()).default([]),
+    billingEntities: z.array(z.object({ name: z.string().trim().min(1).max(200), accountNumber: z.string().max(200).optional(), billType: z.string().max(100).optional(), documentId: z.string().uuid().optional() })).max(20).default([]),
     mayoFinancialAssistance: z.object({
       relationshipToPatient: z.array(z.string()), applicantFirstName: z.string(), applicantMiddleName: z.string(), applicantLastName: z.string(), mayoClinicNumber: z.string().optional(), responsiblePartyBirthDate: z.string(), maritalStatus: z.string().optional(), unemployedSince: z.string().optional(),
       claimedOnAnotherTaxReturn: z.enum(["yes", "no", ""]), assistanceNeed: z.string(), appliedForGovernmentAssistance: z.enum(["yes", "no", ""]), governmentAssistanceReason: z.string().optional(), pendingClaim: z.enum(["yes", "no", ""]), pendingClaimReason: z.string().optional(), employerInsuranceAvailable: z.enum(["yes", "no", ""]), employerInsuranceReason: z.string().optional(),
@@ -257,6 +259,7 @@ export async function POST(request: Request) {
       hospital_account_number: payload.hospital.accountNumber || null,
       guarantor_number: payload.hospital.guarantorNumber || null,
       treatment_facilities: payload.hospital.treatmentFacilities,
+      billing_entities: payload.hospital.billingEntities.map((entity) => ({ ...entity, ...normalizeBillingEntity(entity.name) })),
       has_insurance: payload.insurance.hasInsurance,
       insurance_details: { ...payload.insurance, volunteerAccessConsent: payload.consent.volunteerAccessConsent, volunteerAccessConsentedAt: payload.consent.signedAt, financialNeeds: payload.household.financialNeeds, utilities: payload.household.financialNeeds?.includes("electricity_gas") ? payload.household.utilities : undefined, socialSecurityNumber: encryptedSsn ? { encrypted: encryptedSsn.encrypted.toString("base64"), iv: encryptedSsn.iv, tag: encryptedSsn.tag, last4: payload.patient.socialSecurityNumber.slice(-4) } : undefined, cancerStage: payload.diagnosis.cancerStage, diagnosisApproximate: payload.diagnosis.diagnosisDate, treatments: payload.diagnosis.treatments, medications: payload.diagnosis.medications, pharmacyName: payload.diagnosis.pharmacyName, mayoFinancialAssistance: payload.hospital.mayoFinancialAssistance ? { ...payload.hospital.mayoFinancialAssistance, applicantFirstName: payload.hospital.mayoFinancialAssistance.applicantFirstName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.firstName : ""), applicantLastName: payload.hospital.mayoFinancialAssistance.applicantLastName || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.lastName : ""), responsiblePartyBirthDate: payload.hospital.mayoFinancialAssistance.responsiblePartyBirthDate || (payload.hospital.mayoFinancialAssistance.relationshipToPatient?.length === 1 && payload.hospital.mayoFinancialAssistance.relationshipToPatient[0] === "I am the patient" ? payload.patient.dateOfBirth : ""), location: "Mayo Clinic Arizona" } : undefined },
       monthly_income: payload.household.monthlyIncome,

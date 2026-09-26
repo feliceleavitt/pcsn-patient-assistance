@@ -89,6 +89,7 @@ export type IntakePayload = {
     accountNumber?: string;
     guarantorNumber?: string;
     treatmentFacilities?: string[];
+    billingEntities?: Array<{ name: string; catalogId?: string; accountNumber?: string; billType?: string; documentId?: string; matchState: "matched" | "unmatched" | "ambiguous" }>;
     mayoFinancialAssistance?: MayoFinancialAssistance;
   };
   insurance: {

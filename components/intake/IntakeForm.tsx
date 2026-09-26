@@ -290,6 +290,7 @@ const initialState: IntakePayload = {
     accountNumber: "",
     guarantorNumber: "",
     treatmentFacilities: [],
+    billingEntities: [],
     mayoFinancialAssistance: emptyMayoApplication,
   },
   insurance: {
@@ -411,6 +412,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
   const isHospital =
     form.assistanceType === "hospital" || form.assistanceType === "both";
   const needsMayoApplication = isHospital && (form.hospital.treatmentFacilities ?? []).includes("Mayo Clinic Arizona");
+  const needsBillingInfo = isHospital || form.household.financialNeeds?.includes("medical_debt");
   const visibleDocumentTypes = useMemo<DocumentType[]>(
     () =>
       [
@@ -494,6 +496,11 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         ? [...new Set([...selected, facility])]
         : selected.filter((item) => item !== facility),
     });
+  }
+  function updateBiller(index: number, value: Partial<NonNullable<IntakePayload["hospital"]["billingEntities"]>[number]>) {
+    const billingEntities = [...(form.hospital.billingEntities ?? [])];
+    billingEntities[index] = { ...billingEntities[index], ...value };
+    updateSection("hospital", { billingEntities });
   }
 
   function updateTreatment(index: number, value: { name?: string; startDate?: string }) {
@@ -628,6 +635,10 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         "payload",
         JSON.stringify({
           ...form,
+          hospital: {
+            ...form.hospital,
+            billingEntities: (form.hospital.billingEntities ?? []).filter((entity) => entity.name.trim()),
+          },
           household: {
             ...form.household,
             employmentStatus: form.patient.employmentStatus,
@@ -843,6 +854,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
               ))}
             </div>
           </div>
+          {needsBillingInfo ? <fieldset className="grid gap-3 rounded-md border border-pine/20 bg-pine/5 p-4 md:col-span-2"><legend className="font-semibold">Who is the bill from?</legend><p className="text-sm text-slate-600">Enter the name exactly as it appears on the bill. This may be different from the hospital or clinic where you receive care. You can add more than one bill.</p>{(form.hospital.billingEntities ?? []).map((biller, index) => <div key={index} className="grid gap-3 rounded-md bg-white p-3 md:grid-cols-2"><TextField label={`Name on bill ${index + 1}`} value={biller.name} onChange={(event) => updateBiller(index, { name: event.target.value })} /><TextField label="Account number, if you have it" value={biller.accountNumber ?? ""} onChange={(event) => updateBiller(index, { accountNumber: event.target.value })} /><label className="grid gap-2 text-sm"><span className="font-medium">What kind of bill is this?</span><select className="h-11 rounded-md border border-slate-300 bg-white px-3" value={biller.billType ?? ""} onChange={(event) => updateBiller(index, { billType: event.target.value })}><option value="">Choose if known</option><option value="hospital">Hospital bill</option><option value="physician">Doctor or practice bill</option><option value="treatment">Treatment or infusion bill</option><option value="other">Other medical bill</option></select></label><label className="grid gap-2 text-sm"><span className="font-medium">Bill you uploaded, if any</span><select className="h-11 rounded-md border border-slate-300 bg-white px-3" value={biller.documentId ?? ""} onChange={(event) => updateBiller(index, { documentId: event.target.value || undefined })}><option value="">No bill uploaded</option>{savedDocuments.filter((document) => document.document_type === "medical_bill").map((document) => <option key={document.id} value={document.id}>{document.original_filename}</option>)}</select></label><Button variant="secondary" onClick={() => updateSection("hospital", { billingEntities: (form.hospital.billingEntities ?? []).filter((_, itemIndex) => itemIndex !== index) })}><Trash2 size={16}/>Remove bill</Button></div>)}<Button variant="secondary" onClick={() => updateSection("hospital", { billingEntities: [...(form.hospital.billingEntities ?? []), { name: "", matchState: "unmatched" }] })}><Plus size={16}/>Add a bill</Button></fieldset> : null}
           {needsMayoApplication ? <MayoFinancialAssistanceSection value={form.hospital.mayoFinancialAssistance ?? emptyMayoApplication} patient={form.patient} onChange={updateMayoApplication} /> : null}
         </div>
       ) : null}
