@@ -147,7 +147,8 @@ export async function importAuditedCatalogs(
   for (const row of questionRows.slice(questionHeader.row + 1)) {
     const id = row[questionHeader.col];
     if (!id || entries.has(id)) continue;
-    entries.set(id, { ...blankEntry("question", id), name: row[questionHeader.col + 2], description: row[questionHeader.col + 4], help: row[questionHeader.col + 9], factKey: `catalog_${slug(id).replaceAll("-", "_")}`, conditional: !/^always$/i.test(row[questionHeader.col + 5]), enabled: false });
+    const a = audits.get(id);
+    entries.set(id, { ...blankEntry("question", id), name: row[questionHeader.col + 2], description: row[questionHeader.col + 4], help: row[questionHeader.col + 9], factKey: `catalog_${slug(id).replaceAll("-", "_")}`, conditional: !/^always$/i.test(row[questionHeader.col + 5]), sourceUrl: a?.source || "", verifiedOn: a?.verified || "", verifiedBy: a?.verified ? "PCSN/admin" : "", verificationStatus: status(a?.status ?? ""), sourceNotes: a?.note ?? "", enabled: false });
   }
   const documentRows = rows(sheet(master, "Documents & Consent"));
   const documentHeader = headerIndex(documentRows, "ID");
@@ -162,6 +163,13 @@ export async function importAuditedCatalogs(
     const program = entries.get(row[crosswalkHeader.col]);
     if (!program || program.kind !== "program") continue;
     const questionIds = row[crosswalkHeader.col + 2].split(/\s*,\s*/).filter((id) => entries.get(id)?.kind === "question");
+    // These IDs are explicitly approved canonical fields in the audited
+    // crosswalk. Enable only the fields actually required by a mapped program;
+    // unrelated inventory fields remain inactive drafts.
+    for (const id of questionIds) {
+      const question = entries.get(id);
+      if (question?.kind === "question") entries.set(id, { ...question, enabled: true });
+    }
     entries.set(program.id, { ...program, questionIds: [...new Set([...program.questionIds, ...questionIds])] });
   }
   const drugRows = rows(sheet(master, "Oncology Drug PAP"));

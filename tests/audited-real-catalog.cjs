@@ -42,6 +42,9 @@ test("real audited import preserves stable metadata and deduplicates records", a
   assert.deepEqual(byId(entries, "MEDCOST-LILLY").drugIds.sort(), ["drug-cyramza", "drug-erbitux", "drug-inluriyo", "drug-jaypirca", "drug-retevmo", "drug-verzenio"]);
   assert.deepEqual(byId(entries, "MEDCOST-EMD-COVERONE").drugIds.sort(), ["drug-bavencio", "drug-tepmetko"]);
   assert.deepEqual(byId(entries, "MEDCOST-AVEO-PAP").drugIds, ["drug-fotivda"]);
+  for (const id of byId(entries, "MED-ONVIDA").questionIds) {
+    assert.equal(byId(entries, id).enabled, true, `${id} is an approved canonical field activated by the audited crosswalk`);
+  }
 });
 
 test("1 uninsured Onvida hospital-bill patient is held for billing-entity review", async () => {
