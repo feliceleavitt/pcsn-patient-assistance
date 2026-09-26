@@ -42,6 +42,11 @@ test("real audited import preserves stable metadata and deduplicates records", a
   assert.deepEqual(byId(entries, "MEDCOST-LILLY").drugIds.sort(), ["drug-cyramza", "drug-erbitux", "drug-inluriyo", "drug-jaypirca", "drug-retevmo", "drug-verzenio"]);
   assert.deepEqual(byId(entries, "MEDCOST-EMD-COVERONE").drugIds.sort(), ["drug-bavencio", "drug-tepmetko"]);
   assert.deepEqual(byId(entries, "MEDCOST-AVEO-PAP").drugIds, ["drug-fotivda"]);
+  const insuranceCategory = byId(entries, "INS-008");
+  assert.deepEqual(insuranceCategory.options, ["commercial", "medicare", "medicaid", "government", "uninsured"]);
+  assert.equal(insuranceCategory.factKey, "insuranceCategory");
+  assert.equal(insuranceCategory.verifiedOn, "2026-09-26");
+  assert.equal(byId(entries, "MEDCOST-AVEO-COPAY").questionIds.includes("INS-008"), true);
   for (const id of byId(entries, "MED-ONVIDA").questionIds) {
     assert.equal(byId(entries, id).enabled, true, `${id} is an approved canonical field activated by the audited crosswalk`);
   }
@@ -64,17 +69,24 @@ test("3 incomplete income evidence yields a review route, not a qualification cl
 });
 test("4 Medicare never receives the explicitly commercial AVEO copay route", async () => {
   const { entries } = await catalogs();
-  assert.equal(route(entries, { medications: "fotivda", insurance: "medicare" }, "MEDCOST-AVEO-COPAY"), undefined);
+  assert.equal(route(entries, { medications: "fotivda", insurance: "yes", insuranceCategory: "medicare" }, "MEDCOST-AVEO-COPAY"), undefined);
 });
 test("5 commercial FOTIVDA support is possible, never an asserted qualification", async () => {
   const { entries } = await catalogs();
-  const item = route(entries, { medications: "fotivda", insurance: "commercial" }, "MEDCOST-AVEO-COPAY");
+  const item = route(entries, { medications: "fotivda", insurance: "yes", insuranceCategory: "commercial" }, "MEDCOST-AVEO-COPAY");
   assert.equal(item.matchState, "MANUAL_REVIEW"); assert.equal(item.actionType, "PROVIDER_SUBMISSION_REQUIRED");
 });
 test("6 government-insured FOTIVDA patient receives only non-copay review routes", async () => {
   const { entries } = await catalogs();
-  const item = route(entries, { medications: "fotivda", insurance: "medicaid" }, "MEDCOST-AVEO-PAP");
+  assert.equal(route(entries, { medications: "fotivda", insurance: "yes", insuranceCategory: "medicaid" }, "MEDCOST-AVEO-COPAY"), undefined);
+  const item = route(entries, { medications: "fotivda", insurance: "yes", insuranceCategory: "medicaid" }, "MEDCOST-AVEO-PAP");
   assert.equal(item.matchState, "MANUAL_REVIEW"); assert.equal(item.volunteerOnly, true);
+});
+test("AVEO copay requires the insurance-category fact, not generic coverage presence", async () => {
+  const { entries } = await catalogs();
+  const item = route(entries, { medications: "fotivda", insurance: "yes" }, "MEDCOST-AVEO-COPAY");
+  assert.equal(item.matchState, "MANUAL_REVIEW", "generic coverage presence cannot establish commercial/private coverage");
+  assert.match(item.rationale.join(" "), /information missing/i);
 });
 test("7 FOTIVDA maps to four distinct assistance routes", async () => {
   const { entries } = await catalogs();

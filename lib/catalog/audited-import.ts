@@ -8,6 +8,51 @@ const text = (value: unknown) => String(value ?? "").trim();
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 95);
 const status = (value: string): Entry["verificationStatus"] =>
   value === "VERIFIED" ? "VERIFIED" : value === "VERIFIED WITH CORRECTION" ? "VERIFIED_WITH_CORRECTION" : value === "PARTIALLY VERIFIED" ? "PARTIALLY_VERIFIED" : value === "OUTDATED" ? "OUTDATED" : value === "CONFLICTING SOURCES" ? "CONFLICTING_SOURCES" : "MANUAL_REVIEW_REQUIRED";
+const humanVerifiedOn = "2026-09-26";
+const humanVerifier = "Felice Leavitt";
+const verifiedProgramIds = new Set([
+  "HOUSING-STCS", "MED-BANNER", "MED-COMMONSPIRIT", "MED-HH-BASIC", "MED-HH-ENH",
+  "MED-MAYO-AZ", "MED-NAH", "MED-NW", "MED-TENET", "MED-TMC", "MED-VALLEYWISE",
+  "MEDCOST-AMGEN", "MEDCOST-AZME", "MEDCOST-BMS", "MEDCOST-FOUNDATIONS",
+  "MEDCOST-GENENTECH", "MEDCOST-JNJ", "MEDCOST-MERCK", "MEDCOST-NOVARTIS",
+  "MEDCOST-PFIZER", "TRANSPORT-ACS", "TRANSPORT-AZFC", "UTILITY-LIHEAP",
+]);
+const liheapSource = "https://des.az.gov/digital-library/liheap-application-benefits-english";
+const honorHealthApplication = "https://www.honorhealth.com/sites/default/files/2019-12/financial-assistance-application-eng.pdf";
+const genentechFoundationForm = "https://www.gene.com/download/pdf/Genentech_Patient_Foundation_Prescriber_Foundation_Form.pdf";
+const verifiedQuestionSources: Record<string, { source: string; note: string }> = Object.fromEntries([
+  ...["BEN-001", "BEN-002", "HH-001", "HH-002", "HH-004", "HOUS-002", "HOUS-003", "INC-001", "INC-002", "INC-003", "INC-004", "INC-005", "INC-006", "PAT-008", "PAT-010", "UTIL-001", "UTIL-002", "UTIL-003", "UTIL-004", "UTIL-006", "UTIL-007", "UTIL-008"].map((id) => [id, { source: liheapSource, note: "Arizona DES LIHEAP Application for Benefits EAP-1002A, effective 2026-09-01." }]),
+  ...["ADDR-001", "ADDR-002", "ADDR-003", "ADDR-004", "HH-001", "HH-002", "HH-004", "PAT-001", "PAT-002", "PAT-003", "PAT-005", "PAT-006", "PAT-007", "SITE-004", "SITE-005"].map((id) => [id, { source: honorHealthApplication, note: "HonorHealth Financial Assistance Application requests the applicable identity, contact, address, household, account, or supporting-document fact." }]),
+  ["ADDR-007", { source: "https://azsos.gov/services/address-confidentiality-program/about-acp", note: "Arizona ACP participants use an assigned substitute address; agencies must accept it." }],
+  ...["CANCER-001", "CANCER-004", "INS-001", "INS-007", "INS-008"].map((id) => [id, { source: genentechFoundationForm, note: "Genentech Patient Foundation prescriber form requests the applicable diagnosis, treatment, coverage, coverage-type, or denial fact." }]),
+]);
+const programCorrections: Record<string, Partial<Entry>> = {
+  "MED-VALLEYWISE": {
+    sourceUrl: "https://valleywisehealth.org/patients/financial-assistance-and-discount-program-updates/",
+    applicationUrl: "https://valleywisehealth.org/patients/financial-assistance-and-discount-program-updates/",
+    sourceNotes: "Current financial-assistance and uninsured-discount schedules changed for services on or after 2025-11-12; confirm the applicable schedule before routing.",
+  },
+  "MEDCOST-AZME": {
+    sourceUrl: "https://www.azandmeapp.com/important-program-updates",
+    applicationUrl: "https://www.azandmeapp.com/important-program-updates",
+    sourceNotes: "Current eligibility and product availability vary by insurance type. AZ&Me stopped accepting new patients for FARXIGA and XIGDUO XR on 2026-05-01; confirm current product-specific eligibility before routing.",
+  },
+  "MEDCOST-NOVARTIS": {
+    sourceUrl: "https://pap.novartis.com/",
+    applicationUrl: "https://pap.novartis.com/",
+    sourceNotes: "Current NPAF workflow distinguishes insurance status; the Patient Enrollment Portal applies to applications on or after 2026-07-27. Confirm product and coverage routing before enrollment.",
+  },
+  "MEDCOST-FOUNDATIONS": {
+    name: "Independent charitable foundations (referral/resource)",
+    sourceNotes: "Referral/resource category only. Fund availability and eligibility are determined by each independent foundation and must be confirmed at the time of referral.",
+  },
+  "UTILITY-LIHEAP": {
+    name: "Arizona LIHEAP Utility Assistance",
+    sourceUrl: "https://des.az.gov/liheap",
+    applicationUrl: "https://des.az.gov/liheap",
+    sourceNotes: "Arizona LIHEAP remains active. Power AZ exhausted funds and stopped accepting new applications after 2026-09-21; it is not represented as an open route.",
+  },
+};
 const action = (instructions: string, hold: boolean): Entry["routeActionType"] => {
   const v = instructions.toLowerCase();
   if (/financial counselor/.test(v)) return "CONTACT_FINANCIAL_COUNSELOR";
@@ -115,30 +160,33 @@ export async function importAuditedCatalogs(
       ? [{ fact: "insurance", operator: "equals" as const, value: "commercial", purpose: "surface" as const, explanation: "Current AVEO Copay Assistance is limited to commercially insured patients." }]
       : [];
     const current = entries.get(id);
+    const humanVerified = verifiedProgramIds.has(id);
     entries.set(id, {
       ...(current ?? blankEntry("program", id)), id, kind: "program",
       name: row[programHeader.col + 2] || current?.name || id,
       organization: row[programHeader.col + 3],
       description: row[programHeader.col + 4],
-      sourceUrl: a?.source || row[programHeader.col + 12],
+      sourceUrl: programCorrections[id]?.sourceUrl || a?.source || row[programHeader.col + 12],
       secondarySourceUrl: a?.secondary || "",
-      verifiedOn: a?.verified || "",
-      lastVerifiedAt: a?.verified || "",
-      verifiedBy: "PCSN/admin",
-      verificationStatus: status(a?.status ?? ""),
-      sourceNotes: a?.note ?? "",
+      verifiedOn: humanVerified ? humanVerifiedOn : a?.verified || "",
+      lastVerifiedAt: humanVerified ? humanVerifiedOn : a?.verified || "",
+      verifiedBy: humanVerified ? humanVerifier : a?.verified ? "PCSN/admin" : "",
+      verificationStatus: humanVerified ? "VERIFIED" : status(a?.status ?? ""),
+      verificationNotes: humanVerified ? "Current authoritative source reviewed 2026-09-26." : "",
+      sourceNotes: programCorrections[id]?.sourceNotes || a?.note || "",
       implementationHold: hold,
       eligibilityMode: rules.length ? "hard_rule" : hold || a?.status === "PARTIALLY VERIFIED" ? "manual_review" : "screening_only",
       providerRequired: /provider.*(?:submit|enrollment|required)|patient and provider complete/.test(`${instructions} ${a?.note ?? ""}`.toLowerCase()),
       billingEntityRequired: /billing entity|medical bill|account|bill\/entity/.test(`${requiredData} ${a?.note ?? ""}`.toLowerCase()),
       routeActionType: action(instructions, hold),
-      applicationUrl: a?.source || row[programHeader.col + 12],
+      applicationUrl: programCorrections[id]?.applicationUrl || a?.source || row[programHeader.col + 12],
       applicationId: id,
       submissionInstructions: instructions,
       rules,
       // Audited programs may be previewed by volunteers; lack of public
       // executable criteria keeps them in manual review rather than implying eligibility.
       enabled: true,
+      ...programCorrections[id],
       manualOnly: true,
     });
   }
@@ -148,8 +196,28 @@ export async function importAuditedCatalogs(
     const id = row[questionHeader.col];
     if (!id || entries.has(id)) continue;
     const a = audits.get(id);
-    entries.set(id, { ...blankEntry("question", id), name: row[questionHeader.col + 2], description: row[questionHeader.col + 4], help: row[questionHeader.col + 9], factKey: `catalog_${slug(id).replaceAll("-", "_")}`, conditional: !/^always$/i.test(row[questionHeader.col + 5]), sourceUrl: a?.source || "", verifiedOn: a?.verified || "", verifiedBy: a?.verified ? "PCSN/admin" : "", verificationStatus: status(a?.status ?? ""), sourceNotes: a?.note ?? "", enabled: false });
+    const verified = verifiedQuestionSources[id];
+    entries.set(id, { ...blankEntry("question", id), name: row[questionHeader.col + 2], description: row[questionHeader.col + 4], help: row[questionHeader.col + 9], factKey: `catalog_${slug(id).replaceAll("-", "_")}`, conditional: !/^always$/i.test(row[questionHeader.col + 5]), sourceUrl: verified?.source || a?.source || "", verifiedOn: verified ? humanVerifiedOn : a?.verified || "", lastVerifiedAt: verified ? humanVerifiedOn : a?.verified || "", verifiedBy: verified ? humanVerifier : a?.verified ? "PCSN/admin" : "", verificationStatus: verified ? "VERIFIED" : status(a?.status ?? ""), verificationNotes: verified ? "Current authoritative source reviewed 2026-09-26." : "", sourceNotes: verified?.note || a?.note || "", enabled: false });
   }
+  // Coverage presence and coverage category are distinct reusable facts. The
+  // latter is necessary for manufacturer rules that distinguish commercial
+  // from Medicare, Medicaid, other government coverage, and no coverage.
+  entries.set("INS-008", {
+    ...blankEntry("question", "INS-008"),
+    name: "What type of health insurance do you have?",
+    description: "Coverage category for program routing; this supplements, and does not replace, the general insurance-presence question.",
+    factKey: "insuranceCategory",
+    answerType: "choice",
+    options: ["commercial", "medicare", "medicaid", "government", "uninsured"],
+    sourceUrl: verifiedQuestionSources["INS-008"].source,
+    verifiedOn: humanVerifiedOn,
+    lastVerifiedAt: humanVerifiedOn,
+    verifiedBy: humanVerifier,
+    verificationStatus: "VERIFIED",
+    verificationNotes: "Current authoritative source reviewed 2026-09-26.",
+    sourceNotes: verifiedQuestionSources["INS-008"].note,
+    enabled: true,
+  });
   const documentRows = rows(sheet(master, "Documents & Consent"));
   const documentHeader = headerIndex(documentRows, "ID");
   for (const row of documentRows.slice(documentHeader.row + 1)) {
@@ -172,6 +240,9 @@ export async function importAuditedCatalogs(
     }
     entries.set(program.id, { ...program, questionIds: [...new Set([...program.questionIds, ...questionIds])] });
   }
+  const aveoCopay = entries.get("MEDCOST-AVEO-COPAY");
+  if (aveoCopay?.kind === "program")
+    entries.set(aveoCopay.id, { ...aveoCopay, questionIds: [...new Set([...aveoCopay.questionIds, "INS-008"])], rules: [{ fact: "insuranceCategory", operator: "equals", value: "commercial", purpose: "surface", explanation: "Current AVEO Copay Assistance is limited to commercially insured patients." }] });
   const drugRows = rows(sheet(master, "Oncology Drug PAP"));
   const drugHeader = headerIndex(drugRows, "Brand drug");
   const drugPrograms = new Map<string, string>();
