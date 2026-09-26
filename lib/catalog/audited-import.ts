@@ -21,7 +21,7 @@ const liheapSource = "https://des.az.gov/digital-library/liheap-application-bene
 const honorHealthApplication = "https://www.honorhealth.com/sites/default/files/2019-12/financial-assistance-application-eng.pdf";
 const genentechFoundationForm = "https://www.gene.com/download/pdf/Genentech_Patient_Foundation_Prescriber_Foundation_Form.pdf";
 const verifiedQuestionSources: Record<string, { source: string; note: string }> = Object.fromEntries([
-  ...["BEN-001", "BEN-002", "HH-001", "HH-002", "HH-004", "HOUS-002", "HOUS-003", "INC-001", "INC-002", "INC-003", "INC-004", "INC-005", "INC-006", "PAT-008", "PAT-010", "UTIL-001", "UTIL-002", "UTIL-003", "UTIL-004", "UTIL-006", "UTIL-007", "UTIL-008"].map((id) => [id, { source: liheapSource, note: "Arizona DES LIHEAP Application for Benefits EAP-1002A, effective 2026-09-01." }]),
+  ...["BEN-001", "BEN-002", "HH-001", "HH-002", "HH-004", "HOUS-001", "HOUS-002", "HOUS-003", "INC-001", "INC-002", "INC-003", "INC-004", "INC-005", "INC-006", "PAT-008", "PAT-010", "UTIL-001", "UTIL-002", "UTIL-003", "UTIL-004", "UTIL-006", "UTIL-007", "UTIL-008"].map((id) => [id, { source: liheapSource, note: "Arizona DES LIHEAP Application for Benefits EAP-1002A, effective 2026-09-01." }]),
   ...["ADDR-001", "ADDR-002", "ADDR-003", "ADDR-004", "HH-001", "HH-002", "HH-004", "PAT-001", "PAT-002", "PAT-003", "PAT-005", "PAT-006", "PAT-007", "SITE-004", "SITE-005"].map((id) => [id, { source: honorHealthApplication, note: "HonorHealth Financial Assistance Application requests the applicable identity, contact, address, household, account, or supporting-document fact." }]),
   ["ADDR-007", { source: "https://azsos.gov/services/address-confidentiality-program/about-acp", note: "Arizona ACP participants use an assigned substitute address; agencies must accept it." }],
   ...["CANCER-001", "CANCER-004", "INS-001", "INS-007", "INS-008"].map((id) => [id, { source: genentechFoundationForm, note: "Genentech Patient Foundation prescriber form requests the applicable diagnosis, treatment, coverage, coverage-type, or denial fact." }]),
@@ -243,6 +243,22 @@ export async function importAuditedCatalogs(
   const aveoCopay = entries.get("MEDCOST-AVEO-COPAY");
   if (aveoCopay?.kind === "program")
     entries.set(aveoCopay.id, { ...aveoCopay, questionIds: [...new Set([...aveoCopay.questionIds, "INS-008"])], rules: [{ fact: "insuranceCategory", operator: "equals", value: "commercial", purpose: "surface", explanation: "Current AVEO Copay Assistance is limited to commercially insured patients." }] });
+  // The audited crosswalk used NEED-003 for AVEO Bridge and Quick Start, but
+  // current AVEO enrollment materials do not require a medication deadline.
+  // Keep the broader triage question as an inactive draft until separate,
+  // source-backed utility-crisis and medication-deadline questions are needed.
+  // HonorHealth Enhanced and Mayo Arizona likewise do not establish the
+  // tax-household concept of HH-005; their mapped household requirements use
+  // other, already verified canonical facts.
+  for (const id of ["MEDCOST-AVEO-BRIDGE", "MEDCOST-AVEO-QUICKSTART", "MED-HH-ENH", "MED-MAYO-AZ"]) {
+    const program = entries.get(id);
+    if (program?.kind === "program")
+      entries.set(id, { ...program, questionIds: program.questionIds.filter((questionId) => questionId !== "NEED-003" && questionId !== "HH-005") });
+  }
+  for (const id of ["NEED-003", "HH-005"]) {
+    const question = entries.get(id);
+    if (question?.kind === "question") entries.set(id, { ...question, enabled: false });
+  }
   const drugRows = rows(sheet(master, "Oncology Drug PAP"));
   const drugHeader = headerIndex(drugRows, "Brand drug");
   const drugPrograms = new Map<string, string>();

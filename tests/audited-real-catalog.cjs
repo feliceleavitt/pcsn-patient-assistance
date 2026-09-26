@@ -47,6 +47,13 @@ test("real audited import preserves stable metadata and deduplicates records", a
   assert.equal(insuranceCategory.factKey, "insuranceCategory");
   assert.equal(insuranceCategory.verifiedOn, "2026-09-26");
   assert.equal(byId(entries, "MEDCOST-AVEO-COPAY").questionIds.includes("INS-008"), true);
+  assert.equal(byId(entries, "HOUS-001").verifiedOn, "2026-09-26", "LIHEAP supports rent-versus-own collection");
+  assert.equal(byId(entries, "MEDCOST-AVEO-BRIDGE").questionIds.includes("NEED-003"), false);
+  assert.equal(byId(entries, "MEDCOST-AVEO-QUICKSTART").questionIds.includes("NEED-003"), false);
+  assert.equal(byId(entries, "MED-HH-ENH").questionIds.includes("HH-005"), false);
+  assert.equal(byId(entries, "MED-MAYO-AZ").questionIds.includes("HH-005"), false);
+  assert.equal(byId(entries, "NEED-003").enabled, false, "unsupported composite triage question remains a draft");
+  assert.equal(byId(entries, "HH-005").enabled, false, "unsupported tax-household question remains a draft");
   for (const id of byId(entries, "MED-ONVIDA").questionIds) {
     assert.equal(byId(entries, id).enabled, true, `${id} is an approved canonical field activated by the audited crosswalk`);
   }
