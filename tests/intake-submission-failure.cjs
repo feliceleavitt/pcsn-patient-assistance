@@ -49,3 +49,11 @@ test("the intake route scopes orphan cleanup to the new patient and signed-in us
   assert.match(route, /\.eq\("id", patient\.id\)\s*\.eq\("user_id", patientSession\.user\.id\)/);
   assert.match(route, /submissionFailureDiagnostic\(submissionError, cleanupError\)/);
 });
+
+test("the PostgREST cache is explicitly refreshed after routing-schema migrations", () => {
+  const migration = fs.readFileSync(
+    path.join(root, "supabase/migrations/013_reload_postgrest_schema.sql"),
+    "utf8",
+  );
+  assert.match(migration, /notify\s+pgrst\s*,\s*'reload schema'/i);
+});
