@@ -9,6 +9,10 @@ import { encryptBuffer } from "@/lib/security/crypto";
 import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 import { normalizeBillingEntity } from "@/lib/billing-entities";
+import {
+  cleanupNewPatientAfterSubmissionFailure,
+  submissionFailureDiagnostic,
+} from "@/lib/intake/submission-failure";
 
 const payloadSchema = z.object({
   assistanceType: z.enum(["manufacturer", "hospital", "both"]),
@@ -276,6 +280,17 @@ export async function POST(request: Request) {
     .single();
 
   if (submissionError) {
+    const cleanupError = await cleanupNewPatientAfterSubmissionFailure(() =>
+      supabase
+        .from("patients")
+        .delete()
+        .eq("id", patient.id)
+        .eq("user_id", patientSession.user.id),
+    );
+    console.error(
+      "Intake submission insert failed",
+      submissionFailureDiagnostic(submissionError, cleanupError),
+    );
     return NextResponse.json(
       { error: "Unable to save submission" },
       { status: 500 },
