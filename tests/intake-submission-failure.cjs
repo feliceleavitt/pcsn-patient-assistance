@@ -57,3 +57,18 @@ test("the PostgREST cache is explicitly refreshed after routing-schema migration
   );
   assert.match(migration, /notify\s+pgrst\s*,\s*'reload schema'/i);
 });
+
+test("only the server service role receives intake-table write privileges", () => {
+  const migration = fs.readFileSync(
+    path.join(root, "supabase/migrations/014_grant_intake_service_access.sql"),
+    "utf8",
+  );
+  assert.match(migration, /grant select, insert, update, delete on table/i);
+  assert.match(migration, /public\.patients,[\s\S]*public\.submissions,[\s\S]*public\.documents/i);
+  assert.match(migration, /to service_role/i);
+  const grantStatements = migration
+    .split(";")
+    .filter((statement) => /^\s*grant\b/im.test(statement))
+    .join(";");
+  assert.doesNotMatch(grantStatements, /to\s+(anon|authenticated)/i);
+});
