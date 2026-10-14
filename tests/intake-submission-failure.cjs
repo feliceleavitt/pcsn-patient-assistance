@@ -50,6 +50,15 @@ test("the intake route scopes orphan cleanup to the new patient and signed-in us
   assert.match(route, /submissionFailureDiagnostic\(submissionError, cleanupError\)/);
 });
 
+test("final submission uploads use the same server-side file restrictions as draft uploads", () => {
+  const source = fs.readFileSync(path.join(root, "app/api/intake/route.ts"), "utf8");
+  assert.match(source, /patientDocumentTypes\.includes\(documentType\)/);
+  assert.match(source, /file\.size > 4_194_304/);
+  assert.match(source, /const mimeType = documentMime\(bytes\)/);
+  assert.match(source, /documentError/);
+  assert.match(source, /remove\(\[storagePath\]\)/);
+});
+
 test("the PostgREST cache is explicitly refreshed after routing-schema migrations", () => {
   const migration = fs.readFileSync(
     path.join(root, "supabase/migrations/013_reload_postgrest_schema.sql"),

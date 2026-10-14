@@ -9,6 +9,7 @@ import { encryptBuffer } from "@/lib/security/crypto";
 import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 import { normalizeBillingEntity } from "@/lib/billing-entities";
+import { documentMime, patientDocumentTypes } from "@/lib/intake/documents";
 import {
   cleanupNewPatientAfterSubmissionFailure,
   submissionFailureDiagnostic,
@@ -209,6 +210,39 @@ export async function POST(request: Request) {
     );
   }
 
+  // Final submission uploads must meet the same server-side restrictions as
+  // saved draft uploads. Validate every file before creating any database rows.
+  const files = Array.from(formData.entries()).filter(
+    (entry): entry is [string, File] =>
+      entry[0].startsWith("document:") && entry[1] instanceof File,
+  );
+  if (files.length > 20) {
+    return NextResponse.json({ error: "Please upload no more than 20 documents." }, { status: 400 });
+  }
+  const uploadedDocuments: Array<{ documentType: string; file: File; bytes: Buffer; mimeType: string }> = [];
+  for (const [key, file] of files) {
+    const documentType = key.replace("document:", "");
+    if (
+      !patientDocumentTypes.includes(documentType) ||
+      file.size === 0 ||
+      file.size > 4_194_304
+    ) {
+      return NextResponse.json(
+        { error: "Choose a valid document category and a PDF, JPG, or PNG up to 4 MB." },
+        { status: 400 },
+      );
+    }
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const mimeType = documentMime(bytes);
+    if (!mimeType) {
+      return NextResponse.json(
+        { error: "Documents must be PDF, JPG, or PNG files." },
+        { status: 400 },
+      );
+    }
+    uploadedDocuments.push({ documentType, file, bytes, mimeType });
+  }
+
   let draftDocumentIds: string[];
   try {
     draftDocumentIds = z.array(z.string().uuid()).max(100).parse(JSON.parse(String(formData.get("draftDocumentIds") ?? "[]")));
@@ -307,12 +341,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const files = Array.from(formData.entries()).filter(
-    (entry): entry is [string, File] =>
-      entry[0].startsWith("document:") && entry[1] instanceof File,
-  );
-  for (const [key, file] of files) {
-    const bytes = Buffer.from(await file.arrayBuffer());
+  for (const { documentType, file, bytes, mimeType } of uploadedDocuments) {
     const encrypted = encryptBuffer(bytes);
     const storagePath = `${submission.id}/${crypto.randomUUID()}.bin`;
     const { error: uploadError } = await supabase.storage
@@ -325,16 +354,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unable to upload document" }, { status: 500 });
     }
 
-    await supabase.from("documents").insert({
+    const { error: documentError } = await supabase.from("documents").insert({
       submission_id: submission.id,
-      original_filename: file.name,
-      document_type: key.replace("document:", ""),
+      original_filename: file.name.slice(0, 255),
+      document_type: documentType,
       storage_path: storagePath,
-      mime_type: file.type || "application/octet-stream",
+      mime_type: mimeType,
       byte_size: file.size,
       encryption_iv: encrypted.iv,
       encryption_tag: encrypted.tag,
     });
+    if (documentError) {
+      await supabase.storage.from("encrypted-documents").remove([storagePath]);
+      return NextResponse.json({ error: "Unable to save document metadata" }, { status: 500 });
+    }
   }
 
   await Promise.all([
