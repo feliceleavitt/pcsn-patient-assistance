@@ -81,3 +81,19 @@ test("only the server service role receives intake-table write privileges", () =
     .join(";");
   assert.doesNotMatch(grantStatements, /to\s+(anon|authenticated)/i);
 });
+
+test("submission retries use a patient-scoped idempotency key", () => {
+  const route = fs.readFileSync(path.join(root, "app/api/intake/route.ts"), "utf8");
+  assert.match(route, /idempotency-key/i);
+  assert.match(route, /submission_idempotency/);
+  assert.match(route, /request_fingerprint/);
+  assert.match(route, /state: "completed"/);
+});
+
+test("patient messages use their dedicated table, never the volunteer-note author UUID", () => {
+  const route = fs.readFileSync(path.join(root, "app/api/patient/application/route.ts"), "utf8");
+  const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
+  assert.match(route, /from\("patient_messages"\)/);
+  assert.doesNotMatch(route, /author_id:\s*`patient:/);
+  assert.match(migration, /revoke all on public\.patient_messages from anon, authenticated/i);
+});

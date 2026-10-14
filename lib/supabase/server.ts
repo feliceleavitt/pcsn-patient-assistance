@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { publicSupabaseUrl } from "@/lib/supabase/environment";
 
 function requireEnv(name: string) {
   const value = process.env[name];
@@ -8,7 +9,7 @@ function requireEnv(name: string) {
 
 export function createServiceClient() {
   return createClient(
-    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    publicSupabaseUrl(),
     requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
     {
       auth: {
@@ -21,7 +22,7 @@ export function createServiceClient() {
 
 export function createAnonServerClient() {
   return createClient(
-    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    publicSupabaseUrl(),
     requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     {
       auth: {

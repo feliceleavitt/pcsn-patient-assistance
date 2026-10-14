@@ -1,6 +1,7 @@
 import { financialNeedOptions } from "@/lib/intake/needs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createHash } from "crypto";
 import {
   sendNewSubmissionNotification,
   sendPatientSubmissionConfirmation,
@@ -185,6 +186,10 @@ export async function POST(request: Request) {
       { status: 401 },
     );
   }
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (!idempotencyKey || !z.string().uuid().safeParse(idempotencyKey).success) {
+    return NextResponse.json({ error: "Please reload and try submitting again." }, { status: 400 });
+  }
 
   const formData = await request.formData();
   const rawPayload = formData.get("payload");
@@ -251,6 +256,15 @@ export async function POST(request: Request) {
   const payload = parsed.data;
   const encryptedSsn = payload.patient.socialSecurityNumber ? encryptBuffer(Buffer.from(payload.patient.socialSecurityNumber, "utf8")) : null;
   const supabase = createServiceClient();
+  const requestFingerprint = createHash("sha256").update(rawPayload).digest("hex");
+  const { error: idempotencyError } = await supabase.from("submission_idempotency").insert({ patient_user_id: patientSession.user.id, idempotency_key: idempotencyKey, request_fingerprint: requestFingerprint, state: "processing" });
+  if (idempotencyError) {
+    const { data: existing } = await supabase.from("submission_idempotency").select("request_fingerprint,state,submission_id").eq("patient_user_id", patientSession.user.id).eq("idempotency_key", idempotencyKey).maybeSingle();
+    if (existing?.request_fingerprint !== requestFingerprint) return NextResponse.json({ error: "This submission key was already used for different information." }, { status: 409 });
+    if (existing?.state === "completed" && existing.submission_id) return NextResponse.json({ ok: true, duplicate: true }, { status: 200 });
+    return NextResponse.json({ error: "This submission is still being processed. Please wait before retrying." }, { status: 409 });
+  }
+  const clearIdempotency = () => supabase.from("submission_idempotency").delete().eq("patient_user_id", patientSession.user.id).eq("idempotency_key", idempotencyKey);
   const { data: patient, error: patientError } = await supabase
     .from("patients")
     .insert({
@@ -270,6 +284,7 @@ export async function POST(request: Request) {
     .single();
 
   if (patientError) {
+    await clearIdempotency();
     return NextResponse.json({ error: "Unable to save patient" }, { status: 500 });
   }
 
@@ -325,6 +340,7 @@ export async function POST(request: Request) {
       "Intake submission insert failed",
       submissionFailureDiagnostic(submissionError, cleanupError),
     );
+    await clearIdempotency();
     return NextResponse.json(
       { error: "Unable to save submission" },
       { status: 500 },
@@ -337,6 +353,7 @@ export async function POST(request: Request) {
       // The transfer RPC is atomic. Keep the original draft and documents for retry.
       await supabase.from("submissions").delete().eq("id",submission.id);
       await supabase.from("patients").delete().eq("id",patient.id).eq("user_id",patientSession.user.id);
+      await clearIdempotency();
       return NextResponse.json({error:"Saved documents could not be attached. Your draft is retained; reload and try again."},{status:409});
     }
   }
@@ -351,6 +368,7 @@ export async function POST(request: Request) {
       });
 
     if (uploadError) {
+      await clearIdempotency();
       return NextResponse.json({ error: "Unable to upload document" }, { status: 500 });
     }
 
@@ -366,11 +384,13 @@ export async function POST(request: Request) {
     });
     if (documentError) {
       await supabase.storage.from("encrypted-documents").remove([storagePath]);
+      await clearIdempotency();
       return NextResponse.json({ error: "Unable to save document metadata" }, { status: 500 });
     }
   }
 
   await Promise.all([
+    supabase.from("submission_idempotency").update({ state: "completed", submission_id: submission.id, completed_at: new Date().toISOString() }).eq("patient_user_id", patientSession.user.id).eq("idempotency_key", idempotencyKey),
     supabase.from("intake_drafts").delete().eq("user_id", patientSession.user.id),
     sendNewSubmissionNotification(),
     sendPatientSubmissionConfirmation(payload.patient.email),

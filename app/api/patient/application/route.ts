@@ -140,11 +140,16 @@ export async function PATCH(request: Request) {
   }
 
   if (parsed.data.message?.trim()) {
-    await supabase.from("admin_notes").insert({
+    const { error: messageError } = await supabase.from("patient_messages").insert({
       submission_id: submission.id,
-      author_id: `patient:${session.user.email}`,
-      note: `Patient update: ${parsed.data.message.trim()}`,
+      patient_user_id: session.user.id,
+      sender_kind: "patient",
+      sender_user_id: session.user.id,
+      body: parsed.data.message.trim(),
     });
+    if (messageError) {
+      return NextResponse.json({ error: "Your update was saved, but your message could not be sent. Please retry the message." }, { status: 503 });
+    }
   }
 
   if (files.length || parsed.data.message?.trim()) {

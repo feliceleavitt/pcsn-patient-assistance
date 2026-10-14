@@ -31,6 +31,6 @@ export function MayoFinancialAssistanceSection({ value, patient, onChange }: Pro
     <TextAreaField required label="Other income" placeholder="List other sources and monthly amounts; enter None if not applicable." value={value.otherIncomeDetails} onChange={(e) => onChange({ otherIncomeDetails: e.target.value })} />
     <TextAreaField required label="Medical debt" placeholder="Hospital or doctor, unpaid balance, and monthly payment; enter None if not applicable." value={value.medicalDebtDetails} onChange={(e) => onChange({ medicalDebtDetails: e.target.value })} />
     <label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1" type="checkbox" checked={value.certificationAccepted} onChange={(e) => onChange({ certificationAccepted: e.target.checked })} /><span>I certify this information is true and correct and authorize Mayo Clinic and its affiliates to verify and share it as needed to evaluate financial assistance.</span></label>
-    <p className="text-sm text-slate-600">Questions about Mayo Clinic's form: 844-217-9591, Monday–Friday, 8 a.m.–5 p.m.</p>
+    <p className="text-sm text-slate-600">Questions about Mayo Clinic&apos;s form: 844-217-9591, Monday–Friday, 8 a.m.–5 p.m.</p>
   </section>;
 }

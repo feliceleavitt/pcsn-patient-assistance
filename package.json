@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:assistance": "node --test tests/assistance-*.cjs",
     "test:catalog": "node --test tests/catalog*.cjs"

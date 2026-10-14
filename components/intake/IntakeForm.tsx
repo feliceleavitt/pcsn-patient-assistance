@@ -2,7 +2,7 @@
 
 import { financialNeedOptions } from "@/lib/intake/needs";
 import { missingIntakeRequirements } from "@/lib/intake/requirements";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileUp, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -350,6 +350,7 @@ type IntakeFormProps = {
 };
 
 export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, catalogDocumentHelp, initialDraft, initialStep = 0, draftUpdatedAt }: IntakeFormProps) {
+  const idempotencyKey = useRef(crypto.randomUUID());
   const router = useRouter();
   const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 0), steps.length - 1));
   const [form, setForm] = useState<IntakePayload>(() => initialDraft ? {
@@ -655,7 +656,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
         }),
       );
       body.append("draftDocumentIds", JSON.stringify(savedDocuments.map(document => document.id)));
-      const response = await fetch("/api/intake", { method: "POST", body });
+      const response = await fetch("/api/intake", { method: "POST", body, headers: { "Idempotency-Key": idempotencyKey.current } });
 
       if (response.ok) {
         router.replace("/intake/confirmation");
@@ -928,7 +929,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
                 >
                   <option value="yes">Yes</option>
                   <option value="no">No</option>
-                  <option value="not_sure">I'm not sure</option>
+                  <option value="not_sure">I&apos;m not sure</option>
                 </select>
               </label>
               <p className="text-sm text-slate-600">
