@@ -19,7 +19,9 @@ type AuditAction =
   | "request_signature"
   | "create_packet"
   | "update_packet"
-  | "create_program_case";
+  | "create_program_case"
+  | "patient_message_sent"
+  | "volunteer_message_sent";
 
 export async function recordAuditEvent(input: {
   actorId: string;

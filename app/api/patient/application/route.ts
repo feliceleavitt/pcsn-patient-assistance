@@ -4,6 +4,7 @@ import { sendNewSubmissionNotification } from "@/lib/notifications/email";
 import { encryptBuffer } from "@/lib/security/crypto";
 import { requirePatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
+import { recordAuditEvent } from "@/lib/security/audit";
 
 const updateSchema = z.object({
   volunteerAccessConsent: z.literal(true),
@@ -150,6 +151,7 @@ export async function PATCH(request: Request) {
     if (messageError) {
       return NextResponse.json({ error: "Your update was saved, but your message could not be sent. Please retry the message." }, { status: 503 });
     }
+    await recordAuditEvent({ actorId: session.user.id, action: "patient_message_sent", submissionId: submission.id, metadata: { senderKind: "patient" } });
   }
 
   if (files.length || parsed.data.message?.trim()) {

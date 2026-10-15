@@ -85,9 +85,9 @@ test("only the server service role receives intake-table write privileges", () =
 test("submission retries use a patient-scoped idempotency key", () => {
   const route = fs.readFileSync(path.join(root, "app/api/intake/route.ts"), "utf8");
   assert.match(route, /idempotency-key/i);
-  assert.match(route, /submission_idempotency/);
-  assert.match(route, /request_fingerprint/);
-  assert.match(route, /state: "completed"/);
+  assert.match(route, /pcsn_claim_submission_operation/);
+  assert.match(route, /requestFingerprint/);
+  assert.match(route, /pcsn_complete_submission_operation/);
 });
 
 test("patient messages use their dedicated table, never the volunteer-note author UUID", () => {
@@ -95,5 +95,14 @@ test("patient messages use their dedicated table, never the volunteer-note autho
   const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
   assert.match(route, /from\("patient_messages"\)/);
   assert.doesNotMatch(route, /author_id:\s*`patient:/);
-  assert.match(migration, /revoke all on public\.patient_messages from anon, authenticated/i);
+  assert.match(migration, /revoke all on public\.patient_messages from public, anon, authenticated/i);
+  assert.match(migration, /pcsn_assert_message_submission_owner/);
+});
+
+test("idempotency SQL uses a lease token so an expired worker cannot complete a reclaimed operation", () => {
+  const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
+  assert.match(migration, /for update/);
+  assert.match(migration, /lease_token=p_token/);
+  assert.match(migration, /lease_expires_at>now\(\)/);
+  assert.match(migration, /submission_id uuid unique/);
 });

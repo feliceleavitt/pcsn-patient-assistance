@@ -178,6 +178,12 @@ function formatValidationError(error: z.ZodError) {
   return `Please check: ${uniqueLabels.slice(0, 6).join(", ")}.`;
 }
 
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") return Object.fromEntries(Object.keys(value as Record<string, unknown>).sort().map((key) => [key, canonicalize((value as Record<string, unknown>)[key])]));
+  return value;
+}
+
 export async function POST(request: Request) {
   const patientSession = await getPatientSession();
   if (!patientSession) {
@@ -256,15 +262,17 @@ export async function POST(request: Request) {
   const payload = parsed.data;
   const encryptedSsn = payload.patient.socialSecurityNumber ? encryptBuffer(Buffer.from(payload.patient.socialSecurityNumber, "utf8")) : null;
   const supabase = createServiceClient();
-  const requestFingerprint = createHash("sha256").update(rawPayload).digest("hex");
-  const { error: idempotencyError } = await supabase.from("submission_idempotency").insert({ patient_user_id: patientSession.user.id, idempotency_key: idempotencyKey, request_fingerprint: requestFingerprint, state: "processing" });
-  if (idempotencyError) {
-    const { data: existing } = await supabase.from("submission_idempotency").select("request_fingerprint,state,submission_id").eq("patient_user_id", patientSession.user.id).eq("idempotency_key", idempotencyKey).maybeSingle();
-    if (existing?.request_fingerprint !== requestFingerprint) return NextResponse.json({ error: "This submission key was already used for different information." }, { status: 409 });
-    if (existing?.state === "completed" && existing.submission_id) return NextResponse.json({ ok: true, duplicate: true }, { status: 200 });
-    return NextResponse.json({ error: "This submission is still being processed. Please wait before retrying." }, { status: 409 });
-  }
-  const clearIdempotency = () => supabase.from("submission_idempotency").delete().eq("patient_user_id", patientSession.user.id).eq("idempotency_key", idempotencyKey);
+  const fingerprintPayload = structuredClone(payloadJson) as Record<string, unknown>;
+  if (fingerprintPayload.consent && typeof fingerprintPayload.consent === "object") delete (fingerprintPayload.consent as Record<string, unknown>).signedAt;
+  const requestFingerprint = createHash("sha256").update(JSON.stringify(canonicalize({ payload: fingerprintPayload, draftDocumentIds: [...draftDocumentIds].sort(), uploads: uploadedDocuments.map(({ documentType, file }) => ({ documentType, name: file.name, size: file.size })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) }))).digest("hex");
+  const { data: claimRows, error: claimError } = await supabase.rpc("pcsn_claim_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_fingerprint: requestFingerprint });
+  const claim = claimRows?.[0] as { outcome: string; lease_token: string | null; submission_id: string | null } | undefined;
+  if (claimError || !claim) return NextResponse.json({ error: "Unable to start submission safely." }, { status: 503 });
+  if (claim.outcome === "conflict") return NextResponse.json({ error: "This submission key was already used for different information." }, { status: 409 });
+  if (claim.outcome === "completed" && claim.submission_id) return NextResponse.json({ ok: true, duplicate: true, submissionId: claim.submission_id }, { status: 200 });
+  if (claim.outcome !== "claimed" || !claim.lease_token) return NextResponse.json({ error: "This submission is still being processed. Please wait before retrying." }, { status: 409 });
+  const leaseToken = claim.lease_token;
+  const clearIdempotency = () => supabase.rpc("pcsn_release_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_token: leaseToken });
   const { data: patient, error: patientError } = await supabase
     .from("patients")
     .insert({
@@ -389,12 +397,9 @@ export async function POST(request: Request) {
     }
   }
 
-  await Promise.all([
-    supabase.from("submission_idempotency").update({ state: "completed", submission_id: submission.id, completed_at: new Date().toISOString() }).eq("patient_user_id", patientSession.user.id).eq("idempotency_key", idempotencyKey),
-    supabase.from("intake_drafts").delete().eq("user_id", patientSession.user.id),
-    sendNewSubmissionNotification(),
-    sendPatientSubmissionConfirmation(payload.patient.email),
-  ]);
+  const { data: completed, error: completionError } = await supabase.rpc("pcsn_complete_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_token: leaseToken, p_submission: submission.id });
+  if (completionError || completed !== true) return NextResponse.json({ error: "Submission was saved but completion could not be confirmed. Please retry with the same request." }, { status: 503 });
+  await Promise.all([supabase.from("intake_drafts").delete().eq("user_id", patientSession.user.id), sendNewSubmissionNotification(), sendPatientSubmissionConfirmation(payload.patient.email)]);
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }
