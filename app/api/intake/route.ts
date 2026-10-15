@@ -9,7 +9,9 @@ import {
 import { encryptBuffer } from "@/lib/security/crypto";
 import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
+import { mapIntakeSubmission } from "@/lib/intake/submission-mapping";
 import { normalizeBillingEntity } from "@/lib/billing-entities";
+import type { IntakePayload } from "@/lib/types";
 import { documentMime, patientDocumentTypes } from "@/lib/intake/documents";
 import {
   cleanupNewPatientAfterSubmissionFailure,
@@ -260,6 +262,7 @@ export async function POST(request: Request) {
     if (new Set(draftDocumentIds).size !== draftDocumentIds.length) throw new Error("Duplicate documents");
   } catch { return NextResponse.json({error:"Please reload your saved documents before submitting."},{status:400}); }
   const payload = parsed.data;
+  const mappedIntake = mapIntakeSubmission(payload as IntakePayload, patientSession.user.id, encryptBuffer);
   const encryptedSsn = payload.patient.socialSecurityNumber ? encryptBuffer(Buffer.from(payload.patient.socialSecurityNumber, "utf8")) : null;
   const supabase = createServiceClient();
   const fingerprintPayload = structuredClone(payloadJson) as Record<string, unknown>;
@@ -275,19 +278,7 @@ export async function POST(request: Request) {
   const clearIdempotency = () => supabase.rpc("pcsn_release_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_token: leaseToken });
   const { data: patient, error: patientError } = await supabase
     .from("patients")
-    .insert({
-      user_id: patientSession.user.id,
-      first_name: payload.patient.firstName,
-      last_name: payload.patient.lastName,
-      date_of_birth: payload.patient.dateOfBirth,
-      phone: payload.patient.phone,
-      email: payload.patient.email,
-      address_line_1: payload.patient.addressLine1,
-      address_line_2: payload.patient.addressLine2 || null,
-      city: payload.patient.city,
-      state: payload.patient.state,
-      postal_code: payload.patient.postalCode,
-    })
+    .insert(mappedIntake.patient)
     .select("id")
     .single();
 
