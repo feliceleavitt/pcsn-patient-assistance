@@ -35,6 +35,10 @@ test("finalizer field coverage accepts every canonical patient and submission co
   assert.deepEqual(Object.keys(value.patient).sort(), patientColumns.sort());
   assert.deepEqual(Object.keys(value.submission).sort(), submissionColumns.sort());
   const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
-  assert.match(migration, /jsonb_populate_record\(null::public\.patients,p_patient/);
-  assert.match(migration, /jsonb_populate_record\(null::public\.submissions,p_submission/);
+  assert.doesNotMatch(migration, /jsonb_populate_record/);
+  for (const column of patientColumns) assert.match(migration, new RegExp(`\\b${column}\\b`));
+  for (const column of submissionColumns) assert.match(migration, new RegExp(`\\b${column}\\b`));
+  assert.match(migration, /p_patient->>'first_name'/);
+  assert.match(migration, /p_submission->>'assistance_type'/);
+  assert.match(migration, /notify pgrst, 'reload schema'/i);
 });

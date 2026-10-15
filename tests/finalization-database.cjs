@@ -55,10 +55,13 @@ test("PostgreSQL finalizer atomically persists mapped values, transfers owned dr
   try {
     await db.query("insert into public.intake_draft_documents(id,user_id,original_filename,document_type,storage_path,mime_type,byte_size,encryption_iv,encryption_tag) values ($1,$2,'synthetic.pdf','photo_id','drafts/synthetic','application/pdf',10,'iv','tag')", [draft, owner]);
     const operation = await claim(db, key);
-    const result = await db.query("select * from public.pcsn_finalize_submission_operation($1,$2,$3,$4,$5,$6)", [owner, key, operation.lease_token, patient, submission, [draft]]);
+    const result = await db.query("select * from public.pcsn_finalize_submission_operation($1,$2,$3,$4,$5,$6)", [owner, key, operation.lease_token, { ...patient, id: other, user_id: other, created_at: "2000-01-01T00:00:00Z", unexpected_patient_field: "ignored" }, { ...submission, id: other, patient_id: other, status: "approved", missing_documents: ["injected"], created_at: "2000-01-01T00:00:00Z", updated_at: "2000-01-01T00:00:00Z", unexpected_submission_field: "ignored" }, [draft]]);
     const submissionId = result.rows[0].submission_id;
     assert.equal((await db.query("select user_id,email from public.patients")).rows[0].user_id, owner);
-    assert.equal((await db.query("select cancer_type,signature from public.submissions where id=$1", [submissionId])).rows[0].signature, "Synthetic");
+    const saved = (await db.query("select cancer_type,signature,status,missing_documents from public.submissions where id=$1", [submissionId])).rows[0];
+    assert.equal(saved.signature, "Synthetic");
+    assert.equal(saved.status, "submitted");
+    assert.deepEqual(saved.missing_documents, []);
     assert.equal((await db.query("select submission_id,storage_path from public.documents")).rows[0].submission_id, submissionId);
     assert.equal((await db.query("select count(*)::int as n from public.intake_draft_documents")).rows[0].n, 0);
     assert.equal((await db.query("select state,submission_id from public.submission_operations")).rows[0].state, "completed");
@@ -66,6 +69,11 @@ test("PostgreSQL finalizer atomically persists mapped values, transfers owned dr
     assert.equal(replay.outcome, "completed");
     assert.equal(replay.submission_id, submissionId);
     assert.equal((await claim(db, key, "b".repeat(64))).outcome, "conflict");
+    await db.query("insert into public.patient_messages(submission_id,patient_user_id,sender_kind,sender_user_id,body) values ($1,$2,'patient',$2,'synthetic message')", [submissionId, owner]);
+    await assert.rejects(
+      db.query("insert into public.patient_messages(submission_id,patient_user_id,sender_kind,sender_user_id,body) values ($1,$2,'patient',$2,'wrong owner')", [submissionId, other]),
+      /does not own submission/,
+    );
   } finally { await db.close(); }
 });
 

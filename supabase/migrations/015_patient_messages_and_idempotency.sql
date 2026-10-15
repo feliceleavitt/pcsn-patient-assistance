@@ -27,6 +27,8 @@ $$;
 create trigger patient_messages_require_submission_owner
 before insert or update of submission_id, patient_user_id on public.patient_messages
 for each row execute function public.pcsn_assert_message_submission_owner();
+revoke all on function public.pcsn_assert_message_submission_owner() from public, anon, authenticated;
+grant execute on function public.pcsn_assert_message_submission_owner() to service_role;
 
 create table public.submission_operations (
   patient_user_id uuid not null references auth.users(id) on delete cascade,
@@ -87,11 +89,46 @@ begin
   end if;
   perform 1 from public.submission_operations where patient_user_id=p_user and idempotency_key=p_key and state='processing' and lease_token=p_token and lease_expires_at>now() for update;
   if not found then raise exception 'Submission operation lease is no longer valid' using errcode='40001'; end if;
-  -- jsonb_populate_record accepts only table columns. Values controlled by this
-  -- RPC override client input, so a caller cannot choose another owner, ID, or
-  -- completion state. Any exception aborts this function's transaction.
-  insert into public.patients select (jsonb_populate_record(null::public.patients,p_patient || jsonb_build_object('id',gen_random_uuid(),'user_id',p_user,'created_at',now()))).* returning * into p;
-  insert into public.submissions select (jsonb_populate_record(null::public.submissions,p_submission || jsonb_build_object('id',gen_random_uuid(),'patient_id',p.id,'status','submitted','missing_documents',ARRAY[]::text[],'created_at',now(),'updated_at',now()))).* returning * into s;
+  -- Explicit allowlists ignore unexpected JSON keys. IDs, ownership, timestamps,
+  -- workflow state, and missing-document state are controlled only here. Any
+  -- exception aborts this function's transaction, including draft transfer.
+  insert into public.patients (
+    id,user_id,first_name,last_name,date_of_birth,phone,email,address_line_1,
+    address_line_2,city,state,postal_code,created_at
+  ) values (
+    gen_random_uuid(),p_user,p_patient->>'first_name',p_patient->>'last_name',
+    (p_patient->>'date_of_birth')::date,p_patient->>'phone',p_patient->>'email',
+    p_patient->>'address_line_1',p_patient->>'address_line_2',p_patient->>'city',
+    p_patient->>'state',p_patient->>'postal_code',now()
+  ) returning * into p;
+  insert into public.submissions (
+    id,patient_id,assistance_type,representative,cancer_type,diagnosis_date,
+    treatment_plan,treatment_start_date,medication_requested,clinic_name,
+    provider_name,provider_npi,provider_phone,provider_fax,provider_address_line_1,
+    provider_address_line_2,provider_city,provider_state,provider_postal_code,
+    hospital_account_number,guarantor_number,treatment_facilities,billing_entities,
+    has_insurance,insurance_details,monthly_income,annual_income,household_size,
+    employment_status,household_members,consent_release,consent_contact_permission,
+    signature,signed_at,status,missing_documents,created_at,updated_at
+  ) values (
+    gen_random_uuid(),p.id,p_submission->>'assistance_type',p_submission->'representative',
+    p_submission->>'cancer_type',(p_submission->>'diagnosis_date')::date,
+    p_submission->>'treatment_plan',nullif(p_submission->>'treatment_start_date','')::date,
+    nullif(p_submission->>'medication_requested',''),p_submission->>'clinic_name',
+    p_submission->>'provider_name',p_submission->>'provider_npi',p_submission->>'provider_phone',
+    nullif(p_submission->>'provider_fax',''),p_submission->>'provider_address_line_1',
+    nullif(p_submission->>'provider_address_line_2',''),p_submission->>'provider_city',
+    p_submission->>'provider_state',p_submission->>'provider_postal_code',
+    nullif(p_submission->>'hospital_account_number',''),nullif(p_submission->>'guarantor_number',''),
+    coalesce(p_submission->'treatment_facilities','[]'::jsonb),
+    coalesce(p_submission->'billing_entities','[]'::jsonb),(p_submission->>'has_insurance')::boolean,
+    coalesce(p_submission->'insurance_details','{}'::jsonb),(p_submission->>'monthly_income')::numeric,
+    (p_submission->>'annual_income')::numeric,(p_submission->>'household_size')::integer,
+    p_submission->>'employment_status',coalesce(p_submission->'household_members','[]'::jsonb),
+    (p_submission->>'consent_release')::boolean,(p_submission->>'consent_contact_permission')::boolean,
+    p_submission->>'signature',(p_submission->>'signed_at')::timestamptz,
+    'submitted',ARRAY[]::text[],now(),now()
+  ) returning * into s;
   if cardinality(p_draft_ids)>0 then perform public.pcsn_attach_draft_documents(p_user,s.id,p_draft_ids); end if;
   update public.submission_operations
     set state='completed',lease_token=null,lease_expires_at=null,submission_id=s.id,completed_at=now()
@@ -102,3 +139,5 @@ end;
 $$;
 revoke all on function public.pcsn_finalize_submission_operation(uuid,uuid,uuid,jsonb,jsonb,uuid[]) from public,anon,authenticated;
 grant execute on function public.pcsn_finalize_submission_operation(uuid,uuid,uuid,jsonb,jsonb,uuid[]) to service_role;
+
+notify pgrst, 'reload schema';

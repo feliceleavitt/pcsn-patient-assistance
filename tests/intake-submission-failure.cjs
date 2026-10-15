@@ -52,7 +52,7 @@ test("relational finalization is delegated to the transactional RPC, not manual 
   assert.match(migration, /insert into public\.patients/);
   assert.match(migration, /insert into public\.submissions/);
   assert.match(migration, /if not found then raise exception 'Submission operation completion failed'/);
-  assert.match(migration, /Any exception aborts this function's transaction/);
+  assert.match(migration, /exception aborts this function's transaction/);
 });
 
 test("final intake rejects direct uploads rather than silently discarding selected files", () => {
@@ -112,6 +112,8 @@ test("patient messages use their dedicated table, never the volunteer-note autho
   assert.doesNotMatch(route, /author_id:\s*`patient:/);
   assert.match(migration, /revoke all on public\.patient_messages from public, anon, authenticated/i);
   assert.match(migration, /pcsn_assert_message_submission_owner/);
+  assert.match(migration, /revoke all on function public\.pcsn_assert_message_submission_owner\(\) from public, anon, authenticated/i);
+  assert.match(migration, /grant execute on function public\.pcsn_assert_message_submission_owner\(\) to service_role/i);
 });
 
 test("idempotency SQL uses a lease token so an expired worker cannot complete a reclaimed operation", () => {
