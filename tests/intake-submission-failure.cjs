@@ -105,4 +105,6 @@ test("idempotency SQL uses a lease token so an expired worker cannot complete a 
   assert.match(migration, /lease_token=p_token/);
   assert.match(migration, /lease_expires_at>now\(\)/);
   assert.match(migration, /submission_id uuid unique/);
+  assert.match(migration, /pcsn_finalize_submission_operation/);
+  assert.match(migration, /for update/);
 });
