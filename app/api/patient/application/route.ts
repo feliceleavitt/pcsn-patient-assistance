@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { documentMime, patientDocumentTypes } from "@/lib/intake/documents";
 import { sendNewSubmissionNotification } from "@/lib/notifications/email";
 import { encryptBuffer } from "@/lib/security/crypto";
 import { requirePatientSession } from "@/lib/security/patient";
@@ -114,8 +115,25 @@ export async function PATCH(request: Request) {
       entry[0].startsWith("document:") && entry[1] instanceof File,
   );
 
+  if (files.length > 20) {
+    return NextResponse.json({ error: "Please upload no more than 20 documents at a time." }, { status: 400 });
+  }
+
+  const uploads: Array<{ documentType: string; file: File; bytes: Buffer; mimeType: string }> = [];
   for (const [key, file] of files) {
+    const documentType = key.replace("document:", "");
+    if (!patientDocumentTypes.includes(documentType) || file.size === 0 || file.size > 4_194_304) {
+      return NextResponse.json({ error: "Choose a valid document category and a PDF, JPG, or PNG up to 4 MB." }, { status: 400 });
+    }
     const bytes = Buffer.from(await file.arrayBuffer());
+    const mimeType = documentMime(bytes);
+    if (!mimeType) {
+      return NextResponse.json({ error: "Documents must be PDF, JPG, or PNG files." }, { status: 400 });
+    }
+    uploads.push({ documentType, file, bytes, mimeType });
+  }
+
+  for (const { documentType, file, bytes, mimeType } of uploads) {
     const encrypted = encryptBuffer(bytes);
     const storagePath = `${submission.id}/${crypto.randomUUID()}.bin`;
     const { error: uploadError } = await supabase.storage
@@ -128,16 +146,20 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unable to upload document." }, { status: 500 });
     }
 
-    await supabase.from("documents").insert({
+    const { error: metadataError } = await supabase.from("documents").insert({
       submission_id: submission.id,
-      original_filename: file.name,
-      document_type: key.replace("document:", ""),
+      original_filename: file.name.slice(0, 255),
+      document_type: documentType,
       storage_path: storagePath,
-      mime_type: file.type || "application/octet-stream",
+      mime_type: mimeType,
       byte_size: file.size,
       encryption_iv: encrypted.iv,
       encryption_tag: encrypted.tag,
     });
+    if (metadataError) {
+      await supabase.storage.from("encrypted-documents").remove([storagePath]);
+      return NextResponse.json({ error: "Document was not saved. Please retry." }, { status: 503 });
+    }
   }
 
   if (parsed.data.message?.trim()) {

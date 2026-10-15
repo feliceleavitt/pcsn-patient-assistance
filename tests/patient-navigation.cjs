@@ -45,3 +45,13 @@ test('anonymous access redirects before data queries', async () => {
   await assert.rejects(page({ searchParams: Promise.resolve({}) }), /redirect:\/patient\/login/);
   assert.deepEqual(filters, []);
 });
+
+test('post-submission uploads validate bytes and clean up only their own failed object', () => {
+  const source = fs.readFileSync(path.join(root, 'app/api/patient/application/route.ts'), 'utf8');
+  assert.match(source, /patientDocumentTypes\.includes\(documentType\)/);
+  assert.match(source, /file\.size > 4_194_304/);
+  assert.match(source, /documentMime\(bytes\)/);
+  assert.match(source, /metadataError/);
+  assert.match(source, /remove\(\[storagePath\]\)/);
+  assert.match(source, /getLatestSubmission\(session\.user\.id\)/);
+});
