@@ -11,11 +11,7 @@ import { getPatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 import { mapIntakeSubmission } from "@/lib/intake/submission-mapping";
 import type { IntakePayload } from "@/lib/types";
-import { documentMime, patientDocumentTypes } from "@/lib/intake/documents";
-import {
-  cleanupNewPatientAfterSubmissionFailure,
-  submissionFailureDiagnostic,
-} from "@/lib/intake/submission-failure";
+import { submissionFailureDiagnostic } from "@/lib/intake/submission-failure";
 
 const payloadSchema = z.object({
   assistanceType: z.enum(["manufacturer", "hospital", "both"]),
@@ -222,37 +218,18 @@ export async function POST(request: Request) {
     );
   }
 
-  // Final submission uploads must meet the same server-side restrictions as
-  // saved draft uploads. Validate every file before creating any database rows.
-  const files = Array.from(formData.entries()).filter(
+  // The finalizer is relational-only. A stale page must never cause selected
+  // bytes to be silently ignored; saved draft documents transfer atomically,
+  // and post-submission uploads use the authenticated dashboard endpoint.
+  const directUploadEntries = Array.from(formData.entries()).filter(
     (entry): entry is [string, File] =>
       entry[0].startsWith("document:") && entry[1] instanceof File,
   );
-  if (files.length > 20) {
-    return NextResponse.json({ error: "Please upload no more than 20 documents." }, { status: 400 });
-  }
-  const uploadedDocuments: Array<{ documentType: string; file: File; bytes: Buffer; mimeType: string }> = [];
-  for (const [key, file] of files) {
-    const documentType = key.replace("document:", "");
-    if (
-      !patientDocumentTypes.includes(documentType) ||
-      file.size === 0 ||
-      file.size > 4_194_304
-    ) {
-      return NextResponse.json(
-        { error: "Choose a valid document category and a PDF, JPG, or PNG up to 4 MB." },
-        { status: 400 },
-      );
-    }
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const mimeType = documentMime(bytes);
-    if (!mimeType) {
-      return NextResponse.json(
-        { error: "Documents must be PDF, JPG, or PNG files." },
-        { status: 400 },
-      );
-    }
-    uploadedDocuments.push({ documentType, file, bytes, mimeType });
+  if (directUploadEntries.length) {
+    return NextResponse.json(
+      { error: "Save documents before submitting, or upload them from your patient dashboard after your application is received." },
+      { status: 400 },
+    );
   }
 
   let draftDocumentIds: string[];
@@ -265,7 +242,7 @@ export async function POST(request: Request) {
   const supabase = createServiceClient();
   const fingerprintPayload = structuredClone(payloadJson) as Record<string, unknown>;
   if (fingerprintPayload.consent && typeof fingerprintPayload.consent === "object") delete (fingerprintPayload.consent as Record<string, unknown>).signedAt;
-  const requestFingerprint = createHash("sha256").update(JSON.stringify(canonicalize({ payload: fingerprintPayload, draftDocumentIds: [...draftDocumentIds].sort(), uploads: uploadedDocuments.map(({ documentType, file }) => ({ documentType, name: file.name, size: file.size })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) }))).digest("hex");
+  const requestFingerprint = createHash("sha256").update(JSON.stringify(canonicalize({ payload: fingerprintPayload, draftDocumentIds: [...draftDocumentIds].sort() }))).digest("hex");
   const { data: claimRows, error: claimError } = await supabase.rpc("pcsn_claim_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_fingerprint: requestFingerprint });
   const claim = claimRows?.[0] as { outcome: string; lease_token: string | null; submission_id: string | null } | undefined;
   if (claimError || !claim) return NextResponse.json({ error: "Unable to start submission safely." }, { status: 503 });
@@ -274,86 +251,16 @@ export async function POST(request: Request) {
   if (claim.outcome !== "claimed" || !claim.lease_token) return NextResponse.json({ error: "This submission is still being processed. Please wait before retrying." }, { status: 409 });
   const leaseToken = claim.lease_token;
   const clearIdempotency = () => supabase.rpc("pcsn_release_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_token: leaseToken });
-  const { data: patient, error: patientError } = await supabase
-    .from("patients")
-    .insert(mappedIntake.patient)
-    .select("id")
-    .single();
-
-  if (patientError) {
+  const { data: finalizedRows, error: finalizationError } = await supabase.rpc("pcsn_finalize_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_token: leaseToken, p_patient: mappedIntake.patient, p_submission: mappedIntake.submission, p_draft_ids: draftDocumentIds });
+  const submission = finalizedRows?.[0] as { submission_id: string } | undefined;
+  if (finalizationError || !submission?.submission_id) {
     await clearIdempotency();
-    return NextResponse.json({ error: "Unable to save patient" }, { status: 500 });
+    console.error("Intake finalization failed", submissionFailureDiagnostic(finalizationError ?? {}, null));
+    return NextResponse.json({ error: "Unable to save submission" }, { status: 500 });
   }
 
-  const { data: submission, error: submissionError } = await supabase
-    .from("submissions")
-    .insert({ patient_id: patient.id, ...mappedIntake.submission })
-    .select("id")
-    .single();
-
-  if (submissionError) {
-    const cleanupError = await cleanupNewPatientAfterSubmissionFailure(() =>
-      supabase
-        .from("patients")
-        .delete()
-        .eq("id", patient.id)
-        .eq("user_id", patientSession.user.id),
-    );
-    console.error(
-      "Intake submission insert failed",
-      submissionFailureDiagnostic(submissionError, cleanupError),
-    );
-    await clearIdempotency();
-    return NextResponse.json(
-      { error: "Unable to save submission" },
-      { status: 500 },
-    );
-  }
-
-  if (draftDocumentIds.length) {
-    const {error:attachError} = await supabase.rpc("pcsn_attach_draft_documents", {p_user:patientSession.user.id,p_submission:submission.id,p_ids:draftDocumentIds});
-    if (attachError) {
-      // The transfer RPC is atomic. Keep the original draft and documents for retry.
-      await supabase.from("submissions").delete().eq("id",submission.id);
-      await supabase.from("patients").delete().eq("id",patient.id).eq("user_id",patientSession.user.id);
-      await clearIdempotency();
-      return NextResponse.json({error:"Saved documents could not be attached. Your draft is retained; reload and try again."},{status:409});
-    }
-  }
-
-  for (const { documentType, file, bytes, mimeType } of uploadedDocuments) {
-    const encrypted = encryptBuffer(bytes);
-    const storagePath = `${submission.id}/${crypto.randomUUID()}.bin`;
-    const { error: uploadError } = await supabase.storage
-      .from("encrypted-documents")
-      .upload(storagePath, encrypted.encrypted, {
-        contentType: "application/octet-stream",
-      });
-
-    if (uploadError) {
-      await clearIdempotency();
-      return NextResponse.json({ error: "Unable to upload document" }, { status: 500 });
-    }
-
-    const { error: documentError } = await supabase.from("documents").insert({
-      submission_id: submission.id,
-      original_filename: file.name.slice(0, 255),
-      document_type: documentType,
-      storage_path: storagePath,
-      mime_type: mimeType,
-      byte_size: file.size,
-      encryption_iv: encrypted.iv,
-      encryption_tag: encrypted.tag,
-    });
-    if (documentError) {
-      await supabase.storage.from("encrypted-documents").remove([storagePath]);
-      await clearIdempotency();
-      return NextResponse.json({ error: "Unable to save document metadata" }, { status: 500 });
-    }
-  }
-
-  const { data: completed, error: completionError } = await supabase.rpc("pcsn_complete_submission_operation", { p_user: patientSession.user.id, p_key: idempotencyKey, p_token: leaseToken, p_submission: submission.id });
-  if (completionError || completed !== true) return NextResponse.json({ error: "Submission was saved but completion could not be confirmed. Please retry with the same request." }, { status: 503 });
+  // The finalization RPC transfers draft metadata and marks the operation
+  // completed in the same transaction. Direct uploads happen only in /patient.
   await Promise.all([supabase.from("intake_drafts").delete().eq("user_id", patientSession.user.id), sendNewSubmissionNotification(), sendPatientSubmissionConfirmation(payload.patient.email)]);
 
   return NextResponse.json({ ok: true }, { status: 201 });

@@ -43,20 +43,31 @@ test("intake diagnostics contain only operational error codes", () => {
   assert.equal(JSON.stringify(diagnostic).includes("sensitive"), false);
 });
 
-test("the intake route scopes orphan cleanup to the new patient and signed-in user", () => {
+test("relational finalization is delegated to the transactional RPC, not manual cleanup", () => {
   const route = fs.readFileSync(path.join(root, "app/api/intake/route.ts"), "utf8");
-  assert.match(route, /cleanupNewPatientAfterSubmissionFailure\(\(\) =>/);
-  assert.match(route, /\.eq\("id", patient\.id\)\s*\.eq\("user_id", patientSession\.user\.id\)/);
-  assert.match(route, /submissionFailureDiagnostic\(submissionError, cleanupError\)/);
+  const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
+  assert.match(route, /pcsn_finalize_submission_operation/);
+  assert.doesNotMatch(route, /from\("patients"\)\s*\.insert/);
+  assert.doesNotMatch(route, /from\("submissions"\)\s*\.insert/);
+  assert.match(migration, /insert into public\.patients/);
+  assert.match(migration, /insert into public\.submissions/);
+  assert.match(migration, /if not found then raise exception 'Submission operation completion failed'/);
+  assert.match(migration, /Any exception aborts this function's transaction/);
 });
 
-test("final submission uploads use the same server-side file restrictions as draft uploads", () => {
+test("final intake rejects direct uploads rather than silently discarding selected files", () => {
   const source = fs.readFileSync(path.join(root, "app/api/intake/route.ts"), "utf8");
-  assert.match(source, /patientDocumentTypes\.includes\(documentType\)/);
-  assert.match(source, /file\.size > 4_194_304/);
-  assert.match(source, /const mimeType = documentMime\(bytes\)/);
-  assert.match(source, /documentError/);
-  assert.match(source, /remove\(\[storagePath\]\)/);
+  assert.match(source, /directUploadEntries/);
+  assert.match(source, /Save documents before submitting/);
+  assert.doesNotMatch(source, /storage\.from\("encrypted-documents"\)/);
+  assert.doesNotMatch(source, /from\("documents"\)\.insert/);
+});
+
+test("the intake form submits saved draft references, never raw document files", () => {
+  const form = fs.readFileSync(path.join(root, "components/intake/IntakeForm.tsx"), "utf8");
+  assert.match(form, /body\.append\("draftDocumentIds"/);
+  assert.doesNotMatch(form, /body\.append\(`document:\$\{documentType\}`/);
+  assert.match(form, /Please wait for saved documents to finish loading or uploading/);
 });
 
 test("the PostgREST cache is explicitly refreshed after routing-schema migrations", () => {
@@ -87,7 +98,11 @@ test("submission retries use a patient-scoped idempotency key", () => {
   assert.match(route, /idempotency-key/i);
   assert.match(route, /pcsn_claim_submission_operation/);
   assert.match(route, /requestFingerprint/);
-  assert.match(route, /pcsn_complete_submission_operation/);
+  assert.match(route, /pcsn_finalize_submission_operation/);
+  assert.doesNotMatch(route, /pcsn_complete_submission_operation/);
+  const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
+  assert.match(migration, /update public\.submission_operations/);
+  assert.match(migration, /state='completed',lease_token=null,lease_expires_at=null,submission_id=s\.id/);
 });
 
 test("patient messages use their dedicated table, never the volunteer-note author UUID", () => {
@@ -101,7 +116,8 @@ test("patient messages use their dedicated table, never the volunteer-note autho
 
 test("idempotency SQL uses a lease token so an expired worker cannot complete a reclaimed operation", () => {
   const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
-  assert.match(migration, /for update/);
+  assert.match(migration, /pcsn_attach_draft_documents\(p_user,s\.id,p_draft_ids\)/);
+  assert.match(migration, /count\(distinct id\)/);
   assert.match(migration, /lease_token=p_token/);
   assert.match(migration, /lease_expires_at>now\(\)/);
   assert.match(migration, /submission_id uuid unique/);

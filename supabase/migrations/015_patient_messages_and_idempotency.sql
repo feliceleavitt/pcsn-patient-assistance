@@ -65,13 +65,6 @@ begin
   return query select 'claimed',next_token,null::uuid;
 end;
 $$;
-create function public.pcsn_complete_submission_operation(p_user uuid,p_key uuid,p_token uuid,p_submission uuid)
-returns boolean language plpgsql security definer set search_path=public as $$
-begin
-  update public.submission_operations set state='completed',lease_token=null,lease_expires_at=null,submission_id=p_submission,completed_at=now() where patient_user_id=p_user and idempotency_key=p_key and state='processing' and lease_token=p_token and lease_expires_at>now();
-  return found;
-end;
-$$;
 create function public.pcsn_release_submission_operation(p_user uuid,p_key uuid,p_token uuid)
 returns boolean language plpgsql security definer set search_path=public as $$
 begin
@@ -79,25 +72,33 @@ begin
   return found;
 end;
 $$;
-revoke all on function public.pcsn_claim_submission_operation(uuid,uuid,text,integer),public.pcsn_complete_submission_operation(uuid,uuid,uuid,uuid),public.pcsn_release_submission_operation(uuid,uuid,uuid) from public,anon,authenticated;
-grant execute on function public.pcsn_claim_submission_operation(uuid,uuid,text,integer),public.pcsn_complete_submission_operation(uuid,uuid,uuid,uuid),public.pcsn_release_submission_operation(uuid,uuid,uuid) to service_role;
+revoke all on function public.pcsn_claim_submission_operation(uuid,uuid,text,integer),public.pcsn_release_submission_operation(uuid,uuid,uuid) from public,anon,authenticated;
+grant execute on function public.pcsn_claim_submission_operation(uuid,uuid,text,integer),public.pcsn_release_submission_operation(uuid,uuid,uuid) to service_role;
 
 -- Creates the relational intake record and completes the matching lease in one
 -- transaction. Object storage is intentionally outside this function.
-create function public.pcsn_finalize_submission_operation(p_user uuid,p_key uuid,p_token uuid,p_patient jsonb,p_submission jsonb)
+create function public.pcsn_finalize_submission_operation(p_user uuid,p_key uuid,p_token uuid,p_patient jsonb,p_submission jsonb,p_draft_ids uuid[] default '{}')
 returns table(patient_id uuid, submission_id uuid)
 language plpgsql security definer set search_path=public as $$
 declare p public.patients%rowtype; s public.submissions%rowtype;
 begin
+  if cardinality(p_draft_ids) <> (select count(distinct id) from unnest(p_draft_ids) as draft_id(id)) then
+    raise exception 'Duplicate draft document identifiers' using errcode='22023';
+  end if;
   perform 1 from public.submission_operations where patient_user_id=p_user and idempotency_key=p_key and state='processing' and lease_token=p_token and lease_expires_at>now() for update;
   if not found then raise exception 'Submission operation lease is no longer valid' using errcode='40001'; end if;
-  insert into public.patients(first_name,last_name,date_of_birth,phone,email,address_line_1,address_line_2,city,state,postal_code,user_id)
-  values(p_patient->>'firstName',p_patient->>'lastName',(p_patient->>'dateOfBirth')::date,p_patient->>'phone',p_patient->>'email',p_patient->>'addressLine1',nullif(p_patient->>'addressLine2',''),p_patient->>'city',p_patient->>'state',p_patient->>'postalCode',p_user) returning * into p;
-  insert into public.submissions(patient_id,assistance_type,representative,cancer_type,diagnosis_date,treatment_plan,medication_requested,clinic_name,provider_name,provider_npi,provider_phone,provider_address_line_1,provider_city,provider_state,provider_postal_code,has_insurance,insurance_details,monthly_income,annual_income,household_size,employment_status,household_members,consent_release,consent_contact_permission,signature,signed_at)
-  values(p.id,p_submission->>'assistanceType',coalesce(p_submission->'representative','{}'),p_submission->>'cancerType',(p_submission->>'diagnosisDate')::date,p_submission->>'treatmentPlan',nullif(p_submission->>'medicationRequested',''),p_submission->>'clinicName',p_submission->>'providerName',coalesce(p_submission->>'providerNpi',''),coalesce(p_submission->>'providerPhone',''),coalesce(p_submission->>'providerAddressLine1',''),coalesce(p_submission->>'providerCity',''),coalesce(p_submission->>'providerState',''),coalesce(p_submission->>'providerPostalCode',''),coalesce((p_submission->>'hasInsurance')::boolean,false),coalesce(p_submission->'insuranceDetails','{}'),(p_submission->>'monthlyIncome')::numeric,(p_submission->>'annualIncome')::numeric,(p_submission->>'householdSize')::integer,p_submission->>'employmentStatus',coalesce(p_submission->'householdMembers','[]'),true,true,p_submission->>'signature',(p_submission->>'signedAt')::timestamptz) returning * into s;
-  if not public.pcsn_complete_submission_operation(p_user,p_key,p_token,s.id) then raise exception 'Submission operation completion failed' using errcode='40001'; end if;
+  -- jsonb_populate_record accepts only table columns. Values controlled by this
+  -- RPC override client input, so a caller cannot choose another owner, ID, or
+  -- completion state. Any exception aborts this function's transaction.
+  insert into public.patients select (jsonb_populate_record(null::public.patients,p_patient || jsonb_build_object('id',gen_random_uuid(),'user_id',p_user,'created_at',now()))).* returning * into p;
+  insert into public.submissions select (jsonb_populate_record(null::public.submissions,p_submission || jsonb_build_object('id',gen_random_uuid(),'patient_id',p.id,'status','submitted','missing_documents',ARRAY[]::text[],'created_at',now(),'updated_at',now()))).* returning * into s;
+  if cardinality(p_draft_ids)>0 then perform public.pcsn_attach_draft_documents(p_user,s.id,p_draft_ids); end if;
+  update public.submission_operations
+    set state='completed',lease_token=null,lease_expires_at=null,submission_id=s.id,completed_at=now()
+    where patient_user_id=p_user and idempotency_key=p_key and state='processing' and lease_token=p_token and lease_expires_at>now();
+  if not found then raise exception 'Submission operation completion failed' using errcode='40001'; end if;
   return query select p.id,s.id;
 end;
 $$;
-revoke all on function public.pcsn_finalize_submission_operation(uuid,uuid,uuid,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.pcsn_finalize_submission_operation(uuid,uuid,uuid,jsonb,jsonb) to service_role;
+revoke all on function public.pcsn_finalize_submission_operation(uuid,uuid,uuid,jsonb,jsonb,uuid[]) from public,anon,authenticated;
+grant execute on function public.pcsn_finalize_submission_operation(uuid,uuid,uuid,jsonb,jsonb,uuid[]) to service_role;

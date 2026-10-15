@@ -27,3 +27,14 @@ test("canonical mapping preserves optional nulls and empty arrays", () => {
   const { mapIntakeSubmission } = mapping(); const value = mapIntakeSubmission({ ...fixture, assistanceType:"hospital", patient:{...fixture.patient,socialSecurityNumber:""}, diagnosis:{...fixture.diagnosis,treatments:[],medications:[]}, hospital:{...fixture.hospital,treatmentFacilities:[],billingEntities:[],mayoFinancialAssistance:undefined} }, "user-2", () => { throw new Error("must not encrypt"); });
   assert.equal(value.submission.treatment_start_date,null); assert.equal(value.submission.medication_requested,null); assert.deepEqual(value.submission.treatment_facilities,[]); assert.equal(value.submission.insurance_details.socialSecurityNumber,undefined);
 });
+test("finalizer field coverage accepts every canonical patient and submission column", () => {
+  const { mapIntakeSubmission } = mapping();
+  const value = mapIntakeSubmission(fixture, "user-3", () => ({ encrypted: Buffer.from("cipher"), iv:"iv", tag:"tag" }));
+  const patientColumns = ["user_id","first_name","last_name","date_of_birth","phone","email","address_line_1","address_line_2","city","state","postal_code"];
+  const submissionColumns = ["assistance_type","representative","cancer_type","diagnosis_date","treatment_plan","treatment_start_date","medication_requested","clinic_name","provider_name","provider_npi","provider_phone","provider_fax","provider_address_line_1","provider_address_line_2","provider_city","provider_state","provider_postal_code","hospital_account_number","guarantor_number","treatment_facilities","billing_entities","has_insurance","insurance_details","monthly_income","annual_income","household_size","employment_status","household_members","consent_release","consent_contact_permission","signature","signed_at"];
+  assert.deepEqual(Object.keys(value.patient).sort(), patientColumns.sort());
+  assert.deepEqual(Object.keys(value.submission).sort(), submissionColumns.sort());
+  const migration = fs.readFileSync(path.join(root, "supabase/migrations/015_patient_messages_and_idempotency.sql"), "utf8");
+  assert.match(migration, /jsonb_populate_record\(null::public\.patients,p_patient/);
+  assert.match(migration, /jsonb_populate_record\(null::public\.submissions,p_submission/);
+});

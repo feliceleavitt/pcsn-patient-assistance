@@ -18,7 +18,8 @@ export default function IntakeConfirmationPage() {
           <p>
             We will contact you if anything is missing or if we need more
             information. You will also receive an email confirming that your
-            application was submitted.
+            application was submitted. You can upload any additional documents
+            securely from your patient dashboard.
           </p>
           <p>
             Many programs send status updates directly by mail or email. Some
@@ -28,10 +29,10 @@ export default function IntakeConfirmationPage() {
         </div>
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/patient/login"
+            href="/patient"
             className="inline-flex h-11 w-fit items-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
           >
-            Sign in to patient profile
+            Open patient dashboard
           </Link>
           <Link
             href={websiteUrl}
