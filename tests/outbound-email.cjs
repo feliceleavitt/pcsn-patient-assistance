@@ -1,0 +1,54 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const Module = require('node:module');
+const ts = require('typescript');
+
+Module._extensions['.ts'] = (module, filename) => {
+  const source = fs.readFileSync(filename, 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  });
+  module._compile(compiled.outputText, filename);
+};
+const email = require('../lib/notifications/email.ts');
+
+test('all five email workflows skip network calls when disabled and retain normal behavior otherwise', async () => {
+  const originalFetch = global.fetch;
+  const originalWarn = console.warn;
+  const names = ['DISABLE_OUTBOUND_EMAIL', 'RESEND_API_KEY', 'NOTIFICATION_FROM_EMAIL', 'NOTIFICATION_RECIPIENTS'];
+  const original = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  const calls = [];
+  global.fetch = async (...args) => { calls.push(args); return { ok: true }; };
+  console.warn = () => {};
+  process.env.RESEND_API_KEY = 'synthetic-test-key';
+  process.env.NOTIFICATION_FROM_EMAIL = 'sender@example.invalid';
+  process.env.NOTIFICATION_RECIPIENTS = 'volunteer@example.invalid';
+  const workflows = [
+    () => email.sendPatientPasswordReset('patient@example.invalid', 'https://example.invalid/reset'),
+    () => email.sendNewSubmissionNotification(),
+    () => email.sendPatientSubmissionConfirmation('patient@example.invalid'),
+    () => email.sendPatientSignatureRequest('patient@example.invalid', 'https://example.invalid/sign'),
+    () => email.sendVolunteerPasswordReset('volunteer@example.invalid', 'https://example.invalid/reset', 'synthetic-key'),
+  ];
+  try {
+    process.env.DISABLE_OUTBOUND_EMAIL = 'true';
+    for (const run of workflows) await run();
+    assert.equal(calls.length, 0);
+    delete process.env.DISABLE_OUTBOUND_EMAIL;
+    for (const run of workflows) await run();
+    assert.equal(calls.length, workflows.length);
+    for (const [url, options] of calls) {
+      assert.equal(url, 'https://api.resend.com/emails');
+      assert.equal(options.method, 'POST');
+    }
+    assert.equal(calls[4][1].headers['Idempotency-Key'], 'synthetic-key');
+  } finally {
+    global.fetch = originalFetch;
+    console.warn = originalWarn;
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name];
+      else process.env[name] = original[name];
+    }
+  }
+});

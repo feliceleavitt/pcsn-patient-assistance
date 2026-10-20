@@ -21,6 +21,11 @@ type EmailMessage = {
 };
 
 async function sendEmail({ to, subject, text, idempotencyKey }: EmailMessage) {
+  if (process.env.DISABLE_OUTBOUND_EMAIL === "true") {
+    console.warn("Skipping email notification: outbound email is disabled.");
+    return false;
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn("Skipping email notification: RESEND_API_KEY is not set.");
