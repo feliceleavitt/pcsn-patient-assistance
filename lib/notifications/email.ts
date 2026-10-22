@@ -21,7 +21,7 @@ type EmailMessage = {
 };
 
 async function sendEmail({ to, subject, text, idempotencyKey }: EmailMessage) {
-  if (process.env.DISABLE_OUTBOUND_EMAIL === "true") {
+  if (process.env.VERCEL_ENV === "preview" || process.env.DISABLE_OUTBOUND_EMAIL === "true") {
     console.warn("Skipping email notification: outbound email is disabled.");
     return false;
   }

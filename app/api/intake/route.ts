@@ -261,7 +261,8 @@ export async function POST(request: Request) {
 
   // The finalization RPC transfers draft metadata and marks the operation
   // completed in the same transaction. Direct uploads happen only in /patient.
-  await Promise.all([supabase.from("intake_drafts").delete().eq("user_id", patientSession.user.id), sendNewSubmissionNotification(), sendPatientSubmissionConfirmation(payload.patient.email)]);
+  const [draftCleanup] = await Promise.all([supabase.from("intake_drafts").delete().eq("user_id", patientSession.user.id), sendNewSubmissionNotification(), sendPatientSubmissionConfirmation(payload.patient.email)]);
+  if (draftCleanup.error) console.error("Intake draft cleanup failed");
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

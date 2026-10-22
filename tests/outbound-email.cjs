@@ -16,7 +16,7 @@ const email = require('../lib/notifications/email.ts');
 test('all five email workflows skip network calls when disabled and retain normal behavior otherwise', async () => {
   const originalFetch = global.fetch;
   const originalWarn = console.warn;
-  const names = ['DISABLE_OUTBOUND_EMAIL', 'RESEND_API_KEY', 'NOTIFICATION_FROM_EMAIL', 'NOTIFICATION_RECIPIENTS'];
+  const names = ['VERCEL_ENV', 'DISABLE_OUTBOUND_EMAIL', 'RESEND_API_KEY', 'NOTIFICATION_FROM_EMAIL', 'NOTIFICATION_RECIPIENTS'];
   const original = Object.fromEntries(names.map(name => [name, process.env[name]]));
   const calls = [];
   global.fetch = async (...args) => { calls.push(args); return { ok: true }; };
@@ -36,6 +36,10 @@ test('all five email workflows skip network calls when disabled and retain norma
     for (const run of workflows) await run();
     assert.equal(calls.length, 0);
     delete process.env.DISABLE_OUTBOUND_EMAIL;
+    process.env.VERCEL_ENV = 'preview';
+    for (const run of workflows) await run();
+    assert.equal(calls.length, 0);
+    delete process.env.VERCEL_ENV;
     for (const run of workflows) await run();
     assert.equal(calls.length, workflows.length);
     for (const [url, options] of calls) {

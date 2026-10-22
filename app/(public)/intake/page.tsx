@@ -36,7 +36,7 @@ export default async function IntakePage({ searchParams }: { searchParams: Promi
   if (draftError) throw new Error("Unable to load your saved application. Please try again.");
   let draft = existingDraft;
   if (!existingDraft) {
-    const { data: startedDraft } = await supabase
+    const { data: startedDraft, error: startError } = await supabase
       .from("intake_drafts")
       .insert({
         user_id: patientSession.user.id,
@@ -46,6 +46,7 @@ export default async function IntakePage({ searchParams }: { searchParams: Promi
       })
       .select("payload, updated_at")
       .single();
+    if (startError) throw new Error("Unable to start your application. Please try again.");
     draft = startedDraft;
   }
 
