@@ -16,6 +16,14 @@ export default async function PatientPortalPage() {
 
   if (error) throw new Error("Unable to load your application. Please try again.");
 
+  const { data: draft, error: draftError } = await createServiceClient()
+    .from("intake_drafts")
+    .select("updated_at")
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+
+  if (draftError) throw new Error("Unable to load your saved progress. Please try again.");
+
   return (
     <main className="min-h-screen bg-paper p-5 md:p-8">
       <div className="mx-auto grid max-w-5xl gap-6">
@@ -29,10 +37,10 @@ export default async function PatientPortalPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/intake?new=1"
+              href={draft ? "/intake" : "/intake?new=1"}
               className="inline-flex h-11 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-ink"
             >
-              Start new request
+              {draft ? "Continue saved application" : "Start new request"}
             </Link>
             <PatientSignOutButton />
           </div>
@@ -78,16 +86,17 @@ export default async function PatientPortalPage() {
           />
         ) : (
           <section className="grid gap-4 rounded-md bg-white p-6 shadow-soft">
-            <h2 className="text-xl font-semibold">No application is linked yet.</h2>
+            <h2 className="text-xl font-semibold">{draft ? "Your application is in progress." : "No application is linked yet."}</h2>
             <p className="text-sm leading-6 text-slate-600">
-              Start the application while signed in, and it will appear here so
-              you can come back later to add missing information.
+              {draft
+                ? "Continue your saved application when you are ready."
+                : "Start an application while signed in, and your submitted request will appear here."}
             </p>
             <Link
-              href="/intake?new=1"
+              href={draft ? "/intake" : "/intake?new=1"}
               className="inline-flex h-11 w-fit items-center rounded-md bg-pine px-4 text-sm font-semibold text-white"
             >
-              Start application
+              {draft ? "Continue application" : "Start application"}
             </Link>
           </section>
         )}
