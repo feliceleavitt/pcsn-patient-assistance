@@ -36,56 +36,58 @@ export async function POST(request: Request) {
 
   const service = createServiceClient();
 
-  if (isVolunteerEmail(email)) {
-    const { data: credential, error: credentialError } = await service
-      .from("volunteer_credentials")
-      .select("email,password_hash,password_salt,must_change_password")
-      .eq("email", email)
-      .maybeSingle<{
-        email: string;
-        password_hash: string;
-        password_salt: string;
-        must_change_password: boolean;
-      }>();
+  // A record in this server-only table is an established volunteer account.
+  // It must remain usable even when an environment allowlist is stale; the
+  // table is only populated by an allowlisted legacy login, an authorized
+  // password reset, or the staging setup flow for an existing admin role.
+  const { data: credential, error: credentialError } = await service
+    .from("volunteer_credentials")
+    .select("email,password_hash,password_salt,must_change_password")
+    .eq("email", email)
+    .maybeSingle<{
+      email: string;
+      password_hash: string;
+      password_salt: string;
+      must_change_password: boolean;
+    }>();
 
-    if (credentialError) {
-      return NextResponse.json({ error: "Volunteer login is temporarily unavailable." }, { status: 503 });
+  if (credentialError) {
+    return NextResponse.json({ error: "Volunteer login is temporarily unavailable." }, { status: 503 });
+  }
+
+  if (credential) {
+    const validPassword = verifyVolunteerPassword(
+      password,
+      credential.password_hash,
+      credential.password_salt,
+    );
+    if (!validPassword) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    if (credential) {
-      const validPassword = verifyVolunteerPassword(
-        password,
-        credential.password_hash,
-        credential.password_salt,
-      );
-      if (!validPassword) {
-        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
-      }
-
-      const response = NextResponse.json({
-        ok: true,
+    const response = NextResponse.json({
+      ok: true,
+      mustChangePassword: credential.must_change_password,
+    });
+    let token: string;
+    try {
+      token = createVolunteerSessionToken(email, {
         mustChangePassword: credential.must_change_password,
       });
-      let token: string;
-      try {
-        token = createVolunteerSessionToken(email, {
-          mustChangePassword: credential.must_change_password,
-        });
-      } catch {
-        return NextResponse.json(
-          { error: "Volunteer login is not configured" },
-          { status: 500 },
-        );
-      }
-      response.cookies.set(cookieName, token, {
-        httpOnly: true,
-        sameSite: "strict",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: sessionTtlSeconds,
-      });
-      return response;
+    } catch {
+      return NextResponse.json(
+        { error: "Volunteer login is not configured" },
+        { status: 500 },
+      );
     }
+    response.cookies.set(cookieName, token, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: sessionTtlSeconds,
+    });
+    return response;
   }
 
   const volunteer = authenticateVolunteer(email, password);

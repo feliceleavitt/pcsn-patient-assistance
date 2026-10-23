@@ -101,7 +101,8 @@ test("invalid token, non-volunteer account and missing staff role are denied", a
 });
 test("password-change restriction remains enforced", async () => {
   cookies = { pcsn_admin_session: "staff" };
-  session = { mustChangePassword: true };
+  session = { user: { email: "staff@example.invalid" }, mustChangePassword: true };
+  role = { must_change_password: true };
   await assert.rejects(
     Preview({ searchParams: Promise.resolve({}) }),
     /redirect:\/admin\/change-password/,
@@ -109,12 +110,14 @@ test("password-change restriction remains enforced", async () => {
 });
 test("synthetic preview requires authenticated demo mode and is hidden otherwise", async () => {
   cookies = { pcsn_admin_session: "staff" };
-  session = { user: { id: "staff" }, role: "admin" };
+  session = { user: { id: "staff", email: "staff@example.invalid" }, role: "admin" };
+  role = { must_change_password: false };
   await assert.rejects(
     Preview({ searchParams: Promise.resolve({}) }),
     /notFound/,
   );
   demo = true;
+  queries = 0;
   cookies = { pcsn_admin_session: "demo-admin-session" };
   assert.ok(
     await Preview({ searchParams: Promise.resolve({ example: "utilities" }) }),

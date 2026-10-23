@@ -79,7 +79,7 @@ test('recovery tokens expire, reject tampering and cannot act as login sessions'
   assert.equal(volunteers.verifyVolunteerSessionToken(token), null);
   assert.equal(tokens.verifyVolunteerResetToken(volunteers.createVolunteerSessionToken(approved)), null);
 });
-test('removed volunteers cannot redeem outstanding links', () => {
+test('removed volunteers cannot redeem outstanding email recovery links', () => {
   const token = tokens.createVolunteerResetToken(approved, null);
   process.env.VOLUNTEER_EMAILS = 'someoneelse@example.org';
   assert.equal(tokens.verifyVolunteerResetToken(token), null);

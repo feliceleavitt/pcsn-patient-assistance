@@ -22,7 +22,17 @@ export async function requireAdminSession() {
 
   const volunteerSession = verifyVolunteerSessionToken(token);
   if (volunteerSession) {
-    if (volunteerSession.mustChangePassword) {
+    // The signed session identifies a credential-based volunteer. Confirm the
+    // server-only credential still exists so a stale email allowlist cannot
+    // silently disable an established account or authorize a removed one.
+    const supabase = createServiceClient();
+    const { data: credential, error: credentialError } = await supabase
+      .from("volunteer_credentials")
+      .select("must_change_password")
+      .eq("email", volunteerSession.user.email)
+      .maybeSingle<{ must_change_password: boolean }>();
+    if (credentialError || !credential) redirect("/admin/login");
+    if (volunteerSession.mustChangePassword || credential.must_change_password) {
       redirect("/admin/change-password");
     }
     return {

@@ -147,7 +147,6 @@ export function verifyVolunteerSessionToken(token: string) {
   }
   if (!parsed.email || !parsed.exp) return null;
   if (parsed.exp < Math.floor(Date.now() / 1000)) return null;
-  if (!isVolunteerEmail(parsed.email)) return null;
 
   const email = normalizeEmail(parsed.email);
   return {
