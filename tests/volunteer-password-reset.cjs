@@ -8,7 +8,7 @@ const Module = require('node:module');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const originalLoad = Module._load;
-let rows, messages, databaseFailure, emailFailure;
+let rows, messages, authRecoveryEmails, databaseFailure, emailFailure;
 const approved = 'volunteer@example.org';
 process.env.VOLUNTEER_EMAILS = approved;
 process.env.ADMIN_SESSION_SECRET = 'test-secret-for-isolated-tests-only';
@@ -42,7 +42,12 @@ Module._extensions['.ts'] = (module, filename) => {
   module._compile(compiled.outputText, filename);
 };
 Module._load = function(request, parent, isMain) {
-  if (request === '@/lib/supabase/server') return { createServiceClient: () => ({ from: () => query() }) };
+  if (request === '@/lib/supabase/server') return {
+    createServiceClient: () => ({ from: () => query() }),
+    createAnonServerClient: () => ({ auth: { resetPasswordForEmail: async email => {
+      authRecoveryEmails.push(email); return { error: null };
+    } } }),
+  };
   if (request === '@/lib/notifications/email') return { sendVolunteerPasswordReset: async (...args) => {
     if (emailFailure) throw new Error('provider unavailable');
     messages.push(args); return true;
@@ -57,7 +62,13 @@ const reset = require('../app/api/admin/reset-password/route.ts');
 const request = body => new Request('https://untrusted-host.example/api/admin/reset-password', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
-beforeEach(() => { rows = new Map(); messages = []; databaseFailure = false; emailFailure = false; process.env.VOLUNTEER_EMAILS = approved; });
+beforeEach(() => {
+  rows = new Map(); messages = []; authRecoveryEmails = [];
+  databaseFailure = false; emailFailure = false;
+  process.env.VOLUNTEER_EMAILS = approved;
+  delete process.env.VERCEL_ENV;
+  delete process.env.STAGING_TEST_EMAIL_RECIPIENT;
+});
 
 test('recovery tokens expire, reject tampering and cannot act as login sessions', () => {
   const token = tokens.createVolunteerResetToken(approved, 'salt', 300_000);
@@ -85,6 +96,20 @@ test('requests use configured origin, private fragment, and stable deduplication
   assert.equal(tokens.verifyVolunteerResetToken(token).salt, 'salt');
   assert.equal(key, tokens.resetEmailIdempotencyKey(token));
   assert.equal(tokens.createVolunteerResetToken(approved, 'salt', 300_001), tokens.createVolunteerResetToken(approved, 'salt', 599_999));
+});
+test('Auth-based volunteers use Supabase recovery instead of a separate credential password', async () => {
+  const response = await forgot.POST(request({ email: approved }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(authRecoveryEmails, [approved]);
+  assert.equal(messages.length, 0);
+});
+test('Preview recovery is limited to the configured staging recipient', async () => {
+  process.env.VERCEL_ENV = 'preview';
+  process.env.STAGING_TEST_EMAIL_RECIPIENT = approved;
+  await forgot.POST(request({ email: 'other@example.org' }));
+  assert.deepEqual(authRecoveryEmails, []);
+  await forgot.POST(request({ email: approved }));
+  assert.deepEqual(authRecoveryEmails, [approved]);
 });
 test('unapproved addresses and delivery errors get the same generic response', async () => {
   const unknown = await forgot.POST(request({ email: 'unknown@example.org' }));

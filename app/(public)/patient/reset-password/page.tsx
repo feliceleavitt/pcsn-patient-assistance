@@ -21,11 +21,34 @@ export default function ResetPatientPasswordPage() {
     const client = createBrowserClient();
     setSupabase(client);
     const tokenHash = new URLSearchParams(window.location.search).get("token_hash");
-    if (!tokenHash) return;
-    void client.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" }).then(({ error: verifyError }) => {
-      setReady(!verifyError);
-      if (verifyError) setError("This reset link is invalid or expired. Request a new link.");
-    });
+    let active = true;
+
+    async function establishRecoverySession() {
+      if (tokenHash) {
+        const { error: verifyError } = await client.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (!active) return;
+        setReady(!verifyError);
+        if (verifyError) setError("This reset link is invalid or expired. Request a new link.");
+        return;
+      }
+
+      // Supabase's built-in recovery email redirects with a recovery session in
+      // the URL fragment. The browser client exchanges it before getSession(),
+      // so accept that supported flow as well as PCSN's token-hash links.
+      const { data } = await client.auth.getSession();
+      if (!active) return;
+      if (data.session) {
+        setReady(true);
+      } else {
+        setError("This reset link is invalid or expired. Request a new link.");
+      }
+    }
+
+    void establishRecoverySession();
+    return () => { active = false; };
   }, []);
 
   async function submit() {
