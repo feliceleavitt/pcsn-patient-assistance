@@ -17,8 +17,7 @@ export default function IntakeConfirmationPage() {
           </p>
           <p>
             We will contact you if anything is missing or if we need more
-            information. You will also receive an email confirming that your
-            application was submitted. You can upload any additional documents
+            information. You can upload any additional documents
             securely from your patient dashboard.
           </p>
           <p>
