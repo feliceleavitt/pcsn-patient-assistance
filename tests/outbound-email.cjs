@@ -16,7 +16,7 @@ const email = require('../lib/notifications/email.ts');
 test('all five email workflows skip network calls when disabled and retain normal behavior otherwise', async () => {
   const originalFetch = global.fetch;
   const originalWarn = console.warn;
-  const names = ['VERCEL_ENV', 'DISABLE_OUTBOUND_EMAIL', 'RESEND_API_KEY', 'NOTIFICATION_FROM_EMAIL', 'NOTIFICATION_RECIPIENTS'];
+  const names = ['VERCEL_ENV', 'DISABLE_OUTBOUND_EMAIL', 'RESEND_API_KEY', 'NOTIFICATION_FROM_EMAIL', 'NOTIFICATION_RECIPIENTS', 'STAGING_TEST_EMAIL_RECIPIENT'];
   const original = Object.fromEntries(names.map(name => [name, process.env[name]]));
   const calls = [];
   global.fetch = async (...args) => { calls.push(args); return { ok: true }; };
@@ -39,14 +39,18 @@ test('all five email workflows skip network calls when disabled and retain norma
     process.env.VERCEL_ENV = 'preview';
     for (const run of workflows) await run();
     assert.equal(calls.length, 0);
+    process.env.STAGING_TEST_EMAIL_RECIPIENT = 'volunteer@example.invalid';
+    await workflows[4]();
+    assert.equal(calls.length, 1);
     delete process.env.VERCEL_ENV;
     for (const run of workflows) await run();
-    assert.equal(calls.length, workflows.length);
+    assert.equal(calls.length, workflows.length + 1);
     for (const [url, options] of calls) {
       assert.equal(url, 'https://api.resend.com/emails');
       assert.equal(options.method, 'POST');
     }
-    assert.equal(calls[4][1].headers['Idempotency-Key'], 'synthetic-key');
+    assert.equal(calls[0][1].headers['Idempotency-Key'], 'synthetic-key');
+    assert.equal(calls[5][1].headers['Idempotency-Key'], 'synthetic-key');
   } finally {
     global.fetch = originalFetch;
     console.warn = originalWarn;

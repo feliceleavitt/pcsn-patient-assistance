@@ -18,10 +18,19 @@ type EmailMessage = {
   idempotencyKey?: string;
   subject: string;
   text: string;
+  allowConfiguredPreviewRecipient?: boolean;
 };
 
-async function sendEmail({ to, subject, text, idempotencyKey }: EmailMessage) {
-  if (process.env.VERCEL_ENV === "preview" || process.env.DISABLE_OUTBOUND_EMAIL === "true") {
+async function sendEmail({ to, subject, text, idempotencyKey, allowConfiguredPreviewRecipient }: EmailMessage) {
+  const isPreview = process.env.VERCEL_ENV === "preview";
+  const configuredPreviewRecipient = process.env.STAGING_TEST_EMAIL_RECIPIENT?.trim().toLowerCase();
+  const isAllowedPreviewRecovery = isPreview &&
+    allowConfiguredPreviewRecipient === true &&
+    configuredPreviewRecipient !== undefined &&
+    to.trim().toLowerCase() === configuredPreviewRecipient;
+
+  if ((isPreview && !isAllowedPreviewRecovery) ||
+      (!isAllowedPreviewRecovery && process.env.DISABLE_OUTBOUND_EMAIL === "true")) {
     console.warn("Skipping email notification: outbound email is disabled.");
     return false;
   }
@@ -151,6 +160,7 @@ export async function sendVolunteerPasswordReset(email: string, resetUrl: string
   return sendEmail({
     to: email,
     idempotencyKey,
+    allowConfiguredPreviewRecipient: true,
     subject: "Reset your PCSN volunteer portal password",
     text: [
       "A password reset was requested for your Phoenix Cancer Support Network volunteer account.",
