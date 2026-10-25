@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { StatusControls } from "@/components/admin/StatusControls";
 import { ArchiveControls } from "@/components/admin/ArchiveControls";
 import { ApplicationEditor } from "@/components/admin/ApplicationEditor";
+import { MessageThread } from "@/components/admin/MessageThread";
 import { getArchivedSubmissionIds } from "@/lib/security/archive";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
@@ -45,7 +46,7 @@ export default async function SubmissionDetailPage({
     : (
         await supabase!
           .from("submissions")
-          .select("*,patients(*),documents(*),admin_notes(*)")
+          .select("*,patients(*),documents(*),admin_notes(*),patient_messages(id,sender_kind,body,created_at)")
           .eq("id", submissionId)
           .maybeSingle()
       ).data;
@@ -323,6 +324,7 @@ export default async function SubmissionDetailPage({
                 <p className="text-sm text-slate-500">No notes yet.</p>
               )}
             </div>
+            <MessageThread submissionId={submissionId} initialMessages={submission.patient_messages ?? []} />
           </section>
           <StatusControls
             submissionId={submissionId}

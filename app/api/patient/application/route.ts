@@ -23,7 +23,7 @@ async function getLatestSubmission(userId: string) {
   const supabase = createServiceClient();
   const { data } = await supabase
     .from("submissions")
-    .select("*,patients!inner(*),documents(*)")
+    .select("*,patients!inner(*),documents(*),patient_messages(id,sender_kind,body,created_at)")
     .eq("patients.user_id", userId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -59,6 +59,7 @@ export async function GET() {
           uploadedAt: document.uploaded_at,
         }),
       ),
+      messages: submission.patient_messages ?? [],
     },
   });
 }

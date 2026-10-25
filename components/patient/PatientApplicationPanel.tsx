@@ -29,6 +29,7 @@ type PatientApplication = {
     documentType: string;
     uploadedAt: string;
   }>;
+  messages: Array<{ id: string; sender_kind: "patient" | "volunteer"; body: string; created_at: string }>;
   signatureRequests: Array<{
     id: string;
     programName: string;
@@ -312,6 +313,11 @@ export function PatientApplicationPanel({
           {saved ? <span className="text-sm text-pine">Updates saved.</span> : null}
           {error ? <span className="text-sm text-coral">{error}</span> : null}
         </div>
+      </section>
+
+      <section className="grid gap-3 rounded-md bg-white p-5 shadow-soft">
+        <h2 className="text-lg font-semibold">Messages</h2>
+        {application.messages.length ? <div className="grid gap-2">{application.messages.map((message) => <div key={message.id} className="rounded-md bg-paper p-3 text-sm"><p className="font-medium capitalize">{message.sender_kind}</p><p>{message.body}</p><p className="mt-1 text-xs text-slate-500">{new Date(message.created_at).toLocaleString()}</p></div>)}</div> : <p className="text-sm text-slate-500">No messages yet.</p>}
       </section>
 
       <section className="grid gap-3 rounded-md bg-white p-5 shadow-soft">
