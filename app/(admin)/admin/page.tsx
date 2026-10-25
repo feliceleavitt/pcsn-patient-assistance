@@ -62,11 +62,17 @@ export default async function AdminDashboardPage() {
     )
       .length ?? 0;
 
-  await recordAuditEvent({
-    actorId: session.user.id,
-    action: "view_dashboard",
-    metadata: { visibleSubmissionCount: submissions?.length ?? 0 },
-  });
+  // An audit write must never prevent an authorized volunteer from seeing the
+  // application queue. The server still records the failure for investigation.
+  try {
+    await recordAuditEvent({
+      actorId: session.user.id,
+      action: "view_dashboard",
+      metadata: { visibleSubmissionCount: submissions?.length ?? 0 },
+    });
+  } catch (error) {
+    console.error("Unable to record volunteer dashboard audit event", error);
+  }
 
   return (
     <main className="min-h-screen p-5 md:p-8">
