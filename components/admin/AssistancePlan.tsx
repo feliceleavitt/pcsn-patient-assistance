@@ -70,6 +70,8 @@ export async function AssistancePlan({
   }
   const profile = withCatalogQuestions(originalProfile, catalog.entries);
   const preview = routingPreview(catalog.entries, profile);
+  const catalogProgramsById = new Map(catalog.entries.filter((entry) => entry.kind === "program").map((entry) => [entry.id, entry]));
+  const catalogDocumentsById = new Map(catalog.entries.filter((entry) => entry.kind === "document").map((entry) => [entry.id, entry]));
   const plan = buildPlan(
     profile,
     catalogPrograms(catalog.entries, profile, catalog.version),
@@ -96,8 +98,7 @@ export async function AssistancePlan({
           </h2>
         </div>
         <span className="rounded-full bg-paper px-3 py-1 text-sm">
-          {plan.length} program {plan.length === 1 ? "route" : "routes"} to
-          review
+          {preview.length} audited {preview.length === 1 ? "route" : "routes"} to review
         </span>
       </div>
       <p className="text-sm leading-6 text-slate-600">
@@ -109,7 +110,7 @@ export async function AssistancePlan({
       <details className="rounded-md border border-pine/20 bg-pine/5 p-4">
         <summary className="cursor-pointer font-semibold">Audited routing preview ({preview.length})</summary>
         <p className="mt-2 text-sm text-slate-600">This is screening only. It does not create a program case, submit an application, contact an organization, or change patient data.</p>
-        {!preview.length ? <p className="mt-2 text-sm">No audited route is ready to review from the currently known facts.</p> : <ul className="mt-3 grid gap-3">{preview.map((route) => <li key={route.programId} className="rounded border bg-white p-3 text-sm"><strong>{route.program}</strong><p>{route.matchState.replaceAll("_", " ")} · {route.actionType.replaceAll("_", " ")}</p><p>{route.volunteerOnly ? "Volunteer/admin review only." : "Volunteer review required before external action."}</p>{route.providerRequired ? <p>Provider action or consent remains outstanding.</p> : null}<a className="text-pine underline" href={route.sourceUrl} target="_blank" rel="noreferrer">Official source</a>{submissionId ? <div className="mt-3"><CreateProgramCaseButton submissionId={submissionId} programId={route.programId} /></div> : null}</li>)}</ul>}
+        {!preview.length ? <p className="mt-2 text-sm">No audited route is ready to review from the currently known facts.</p> : <ul className="mt-3 grid gap-3">{preview.map((route) => { const entry = catalogProgramsById.get(route.programId); const documents = (entry?.documentIds ?? []).map((id) => catalogDocumentsById.get(id)?.name).filter(Boolean); return <li key={route.programId} className="rounded border bg-white p-3 text-sm"><strong>{route.program}</strong><p>{route.matchState.replaceAll("_", " ")} · {route.actionType.replaceAll("_", " ")}</p><p>{route.matchState === "MATCHED" ? "Reported facts support review; the outside organization still decides eligibility." : route.matchState === "POSSIBLE" ? "Some reported facts support review; confirm the missing information." : "Volunteer/admin review is required before any external action."}</p><ul className="mt-2 list-disc pl-5 text-xs text-slate-700">{route.rationale.map((reason) => <li key={reason}>{reason}</li>)}</ul>{documents.length ? <p className="mt-2 text-xs"><strong>Checklist / documents:</strong> {documents.join("; ")}</p> : <p className="mt-2 text-xs">No catalog checklist is configured; use the official program source and document findings in the case.</p>}{route.providerRequired ? <p>Provider action or consent remains outstanding.</p> : null}<a className="mt-2 inline-block text-pine underline" href={route.sourceUrl} target="_blank" rel="noreferrer">Official source</a>{submissionId ? <div className="mt-3"><CreateProgramCaseButton submissionId={submissionId} programId={route.programId} /></div> : null}</li>; })}</ul>}
       </details>
       <p className="rounded-md bg-paper p-3 text-sm">
         External progress is unknown until a volunteer creates a program case
@@ -215,20 +216,6 @@ export async function AssistancePlan({
             ))}
           </ul>
         </details>
-      ) : null}
-      {!plan.length ? (
-        <div className="rounded-md bg-paper p-4">
-          <h3 className="font-semibold">
-            More information needed · no supported pilot route identified yet
-          </h3>
-          <p className="mt-2 text-sm leading-6">
-            This preview only covers Mayo Arizona and the DES energy-assistance
-            route. Other assistance remains in the existing patient record and
-            worksheet. Volunteer next action: review the patient’s stated need
-            and identify a supported route; this is not a finding of
-            ineligibility.
-          </p>
-        </div>
       ) : null}
       {!utility ? (
         <p className="text-sm text-slate-600">
