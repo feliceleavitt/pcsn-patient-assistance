@@ -7,10 +7,12 @@ import { StatusControls } from "@/components/admin/StatusControls";
 import { ArchiveControls } from "@/components/admin/ArchiveControls";
 import { ApplicationEditor } from "@/components/admin/ApplicationEditor";
 import { MessageThread } from "@/components/admin/MessageThread";
+import { PacketControls } from "@/components/admin/PacketControls";
 import { getArchivedSubmissionIds } from "@/lib/security/archive";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
+import { volunteerResources } from "@/lib/resources";
 import {
   getDemoSubmission,
   isDemoMode,
@@ -46,7 +48,7 @@ export default async function SubmissionDetailPage({
     : (
         await supabase!
           .from("submissions")
-          .select("*,patients(*),documents(*),admin_notes(*),patient_messages(id,sender_kind,body,created_at)")
+          .select("*,patients(*),documents(*),admin_notes(*),patient_messages(id,sender_kind,body,created_at),assistance_packets(*)")
           .eq("id", submissionId)
           .maybeSingle()
       ).data;
@@ -108,6 +110,11 @@ export default async function SubmissionDetailPage({
           memberId: String(insurance.medicalMemberId ?? ""), pcn: String(insurance.medicalPcn ?? ""), groupId: String(insurance.medicalGroupId ?? ""), policyHolder: String(insurance.medicalPolicyHolder ?? ""),
           monthlyIncome: String(submission.monthly_income ?? ""), annualIncome: String(submission.annual_income ?? ""),
         }} />
+        <PacketControls
+          submissionId={submissionId}
+          resources={volunteerResources}
+          initialPackets={submission.assistance_packets ?? []}
+        />
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="grid gap-5 rounded-md bg-white p-5 shadow-soft">
