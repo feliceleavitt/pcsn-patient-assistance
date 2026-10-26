@@ -112,9 +112,8 @@ export async function AssistancePlan({
         {!preview.length ? <p className="mt-2 text-sm">No audited route is ready to review from the currently known facts.</p> : <ul className="mt-3 grid gap-3">{preview.map((route) => <li key={route.programId} className="rounded border bg-white p-3 text-sm"><strong>{route.program}</strong><p>{route.matchState.replaceAll("_", " ")} · {route.actionType.replaceAll("_", " ")}</p><p>{route.volunteerOnly ? "Volunteer/admin review only." : "Volunteer review required before external action."}</p>{route.providerRequired ? <p>Provider action or consent remains outstanding.</p> : null}<a className="text-pine underline" href={route.sourceUrl} target="_blank" rel="noreferrer">Official source</a>{submissionId ? <div className="mt-3"><CreateProgramCaseButton submissionId={submissionId} programId={route.programId} /></div> : null}</li>)}</ul>}
       </details>
       <p className="rounded-md bg-paper p-3 text-sm">
-        Assignments, submission dates, decisions and follow-up dates are not
-        saved in this preview. External progress is unknown until a volunteer
-        records it in a future program case.
+        External progress is unknown until a volunteer creates a program case
+        and records the work in its internal tracking fields below.
       </p>
       <details className="rounded-md border border-pine/20 p-4">
         <summary className="cursor-pointer font-semibold">
