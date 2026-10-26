@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { EnvironmentBanner } from "@/components/EnvironmentBanner";
 
 export const metadata: Metadata = {
   title: "PCSN Financial Assistance",
@@ -13,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><EnvironmentBanner />{children}</body>
     </html>
   );
 }

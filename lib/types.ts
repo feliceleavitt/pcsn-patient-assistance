@@ -90,6 +90,8 @@ export type IntakePayload = {
     guarantorNumber?: string;
     treatmentFacilities?: string[];
     billingEntities?: Array<{ name: string; catalogId?: string; accountNumber?: string; billType?: string; documentId?: string; matchState: "matched" | "unmatched" | "ambiguous" }>;
+    estimatedMedicalBillAmount?: number | string;
+    medicalBillAmountUnknown?: boolean;
     mayoFinancialAssistance?: MayoFinancialAssistance;
   };
   insurance: {
@@ -118,7 +120,7 @@ export type IntakePayload = {
   };
   household: {
     financialNeeds?: string[];
-    utilities?: { utilityProvider?: string; accountHolder?: string; serviceAddress?: string; shutoff?: string; utilitiesInRent?: string };
+    utilities?: { utilityProvider?: string; accountHolder?: string; serviceAddress?: string; shutoff?: string; utilitiesInRent?: string; overdueBalance?: number | string; balanceUnknown?: boolean };
     monthlyIncome: number | string;
     annualIncome: number | string;
     householdSize: number;
