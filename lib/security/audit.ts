@@ -22,6 +22,11 @@ type AuditAction =
   | "create_program_case"
   | "update_program_case"
   | "assign_program_case"
+  | "caregiver_invited"
+  | "caregiver_invitation_revoked"
+  | "caregiver_access_granted"
+  | "caregiver_access_revoked"
+  | "caregiver_access_viewed"
   | "patient_message_sent"
   | "volunteer_message_sent";
 

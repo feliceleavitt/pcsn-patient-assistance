@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PatientApplicationPanel } from "@/components/patient/PatientApplicationPanel";
 import { PatientSignOutButton } from "@/components/patient/PatientSignOutButton";
+import { CaregiverAccessManager } from "@/components/patient/CaregiverAccessManager";
 import { requirePatientSession } from "@/lib/security/patient";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -47,7 +48,7 @@ export default async function PatientPortalPage() {
         </header>
 
         {application ? (
-          <PatientApplicationPanel
+          <><PatientApplicationPanel
             application={{
               volunteerAccessConsent: application.insurance_details?.volunteerAccessConsent === true,
               status: application.status,
@@ -84,7 +85,7 @@ export default async function PatientPortalPage() {
                 }),
               ),
             }}
-          />
+          /><CaregiverAccessManager /></>
         ) : (
           <section className="grid gap-4 rounded-md bg-white p-6 shadow-soft">
             <h2 className="text-xl font-semibold">{draft ? "Your application is in progress." : "No application is linked yet."}</h2>
