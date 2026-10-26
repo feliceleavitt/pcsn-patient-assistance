@@ -20,6 +20,8 @@ type AuditAction =
   | "create_packet"
   | "update_packet"
   | "create_program_case"
+  | "update_program_case"
+  | "assign_program_case"
   | "patient_message_sent"
   | "volunteer_message_sent";
 

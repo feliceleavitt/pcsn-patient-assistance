@@ -8,6 +8,7 @@ import { ArchiveControls } from "@/components/admin/ArchiveControls";
 import { ApplicationEditor } from "@/components/admin/ApplicationEditor";
 import { MessageThread } from "@/components/admin/MessageThread";
 import { PacketControls } from "@/components/admin/PacketControls";
+import { ProgramCaseControls } from "@/components/admin/ProgramCaseControls";
 import { getArchivedSubmissionIds } from "@/lib/security/archive";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
@@ -48,7 +49,7 @@ export default async function SubmissionDetailPage({
     : (
         await supabase!
           .from("submissions")
-          .select("*,patients(*),documents(*),admin_notes(*),patient_messages(id,sender_kind,body,created_at),assistance_packets(*)")
+          .select("*,patients(*),documents(*),admin_notes(*),patient_messages(id,sender_kind,body,created_at),assistance_packets(*),program_cases(*)")
           .eq("id", submissionId)
           .maybeSingle()
       ).data;
@@ -114,6 +115,10 @@ export default async function SubmissionDetailPage({
           submissionId={submissionId}
           resources={volunteerResources}
           initialPackets={submission.assistance_packets ?? []}
+        />
+        <ProgramCaseControls
+          submissionId={submissionId}
+          initialCases={submission.program_cases ?? []}
         />
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">

@@ -76,6 +76,7 @@ export async function PATCH(
   } else if (body.action === "mark_submitted") {
     update = {
       status: "submitted",
+      submitted_at: new Date().toISOString(),
       notes: body.notes?.trim() || null,
     };
   } else {

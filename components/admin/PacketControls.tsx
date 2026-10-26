@@ -16,6 +16,7 @@ type PacketRecord = {
   patient_signed_at: string | null;
   fax_number: string | null;
   faxed_at: string | null;
+  submitted_at: string | null;
   fax_confirmation: string | null;
   notes: string | null;
 };
@@ -185,6 +186,11 @@ export function PacketControls({
                     {packet.faxed_at ? (
                       <p className="text-sm text-pine">
                         Faxed {new Date(packet.faxed_at).toLocaleString()}
+                      </p>
+                    ) : null}
+                    {packet.submitted_at ? (
+                      <p className="text-sm text-pine">
+                        Submitted {new Date(packet.submitted_at).toLocaleString()}
                       </p>
                     ) : null}
                   </div>
