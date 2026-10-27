@@ -13,7 +13,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ sub
   if (!parsed.success) return NextResponse.json({ error: "Enter a message up to 4,000 characters." }, { status: 400 });
   const supabase = createServiceClient();
   const { data: submission } = await supabase.from("submissions").select("patient_id,patients!inner(user_id)").eq("id", submissionId).maybeSingle();
-  const patient = submission?.patients as { user_id?: string } | null;
+  // Depending on the relation cardinality Supabase returns the joined patient
+  // as either an object or a one-item array. Normalize it before checking
+  // ownership so valid patient submissions can receive volunteer messages.
+  const relation = submission?.patients as { user_id?: string } | { user_id?: string }[] | null | undefined;
+  const patient = Array.isArray(relation) ? relation[0] : relation;
   if (!patient?.user_id) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
   // Credential-based staging volunteers have a signed application session, not
   // an auth.users UUID. `sender_user_id` is an optional Auth foreign key, so
