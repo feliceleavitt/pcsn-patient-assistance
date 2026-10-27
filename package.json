@@ -10,6 +10,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.cjs",
     "test:assistance": "node --test tests/assistance-*.cjs",
     "test:catalog": "node --test tests/catalog*.cjs"
   },
