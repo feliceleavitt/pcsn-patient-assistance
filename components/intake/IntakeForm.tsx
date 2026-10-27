@@ -8,6 +8,7 @@ import { FileUp, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AutocompleteField } from "@/components/ui/AutocompleteField";
 import { TextAreaField, TextField } from "@/components/ui/Field";
+import { formatPortalDateTime } from "@/lib/format";
 
 import { MayoFinancialAssistanceSection } from "@/components/intake/MayoFinancialAssistanceSection";
 import type { IntakePayload, MayoFinancialAssistance } from "@/lib/types";
@@ -405,7 +406,7 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
   const [submitError, setSubmitError] = useState("");
   const [draftMessage, setDraftMessage] = useState(
     draftUpdatedAt
-      ? `Saved progress loaded from ${new Date(draftUpdatedAt).toLocaleString()}.`
+      ? `Saved progress loaded from ${formatPortalDateTime(draftUpdatedAt)}.`
       : "",
   );
   const isManufacturer =
@@ -558,8 +559,8 @@ export function IntakeForm({ catalogFacilities, catalogDrugs, catalogQuestions, 
       }
 
       const savedAt = result?.updatedAt
-        ? new Date(result.updatedAt).toLocaleString()
-        : new Date().toLocaleString();
+        ? formatPortalDateTime(result.updatedAt)
+        : formatPortalDateTime(new Date());
       setDraftMessage(`Progress saved ${savedAt}. You can sign back in later to continue.`);
       return true;
     } catch {
