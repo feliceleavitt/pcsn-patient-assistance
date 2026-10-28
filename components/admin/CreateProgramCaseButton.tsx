@@ -12,6 +12,6 @@ export function CreateProgramCaseButton({ submissionId, programId }: { submissio
     setState(response.ok ? "saved" : "error");
     if (response.ok) router.refresh();
   }
-  if (state === "saved") return <p className="text-sm text-pine">Program case created with this route snapshot.</p>;
-  return <div className="grid gap-1"><Button variant="secondary" disabled={state === "saving"} onClick={create}>{state === "saving" ? "Creating case…" : "Create program case"}</Button>{state === "error" ? <p className="text-xs text-coral">Could not create the case. It may already exist or need refreshed review.</p> : null}</div>;
+  if (state === "saved") return <p role="status" className="text-sm text-pine">Tracking record created. Open My tasks &amp; applications to record progress.</p>;
+  return <div className="grid gap-1"><Button variant="secondary" disabled={state === "saving"} onClick={create}>{state === "saving" ? "Starting…" : "Start working on this program"}</Button>{state === "error" ? <p className="text-xs text-coral">A tracking record may already exist. Refresh this page and check My tasks &amp; applications.</p> : null}</div>;
 }
