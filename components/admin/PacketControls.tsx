@@ -99,16 +99,15 @@ export function PacketControls({
   return (
     <div className="grid gap-4 rounded-md bg-white p-5 shadow-soft">
       <div>
-        <h2 className="text-lg font-semibold">Assistance packets</h2>
+        <h2 className="text-lg font-semibold">Documents, signatures & external submission</h2>
         <p className="mt-1 text-sm leading-6 text-slate-600">
-          Build a packet for a program, request the patient&apos;s secure
-          signature, download the signed PDF, and log fax/submission details.
+          Create a PCSN packet from the patient&apos;s existing information. Requesting a signature notifies the patient in the portal; downloading produces a PDF for the volunteer to handle outside PCSN. Marking faxed or submitted only records work you completed elsewhere—it does not send a fax or submit an application.
         </p>
       </div>
 
       <div className="grid gap-3 rounded-md bg-paper p-4">
         <label className="grid gap-2 text-sm">
-          <span className="font-medium">Program or assistance form</span>
+          <span className="font-medium">Program or assistance form to prepare</span>
           <select
             className="h-11 rounded-md border border-slate-300 bg-white px-3"
             value={selectedProgram}
@@ -144,7 +143,7 @@ export function PacketControls({
             checked={requestSignature}
             onChange={(event) => setRequestSignature(event.target.checked)}
           />
-          Request patient electronic signature now
+          Request the patient&apos;s electronic signature after packet creation
         </label>
         <textarea
           className="min-h-20 rounded-md border border-slate-300 bg-white px-3 py-3 text-sm"
@@ -153,7 +152,7 @@ export function PacketControls({
           placeholder="Internal notes for this packet"
         />
         <Button onClick={createPacket} disabled={saving}>
-          {saving ? "Creating..." : "Create packet"}
+          {saving ? "Creating..." : "Create internal packet"}
         </Button>
       </div>
 
@@ -175,12 +174,12 @@ export function PacketControls({
                     </p>
                     {packet.signature_requested_at ? (
                       <p className="text-sm text-slate-600">
-                        Signature requested {new Date(packet.signature_requested_at).toLocaleDateString()}
+                        Patient signature requested {new Date(packet.signature_requested_at).toLocaleDateString()}
                       </p>
                     ) : null}
                     {packet.patient_signed_at ? (
                       <p className="text-sm text-pine">
-                        Signed {new Date(packet.patient_signed_at).toLocaleString()}
+                        Patient signed {new Date(packet.patient_signed_at).toLocaleString()}
                       </p>
                     ) : null}
                     {packet.faxed_at ? (
@@ -199,14 +198,14 @@ export function PacketControls({
                       className="inline-flex h-10 items-center justify-center rounded-md border border-pine/30 px-3 text-sm font-semibold text-pine"
                       href={`/api/admin/submissions/${submissionId}/packets/${packet.id}/download`}
                     >
-                      Download PDF
+                      Download PDF to submit outside PCSN
                     </a>
                     {!isSigned ? (
                       <Button
                         variant="secondary"
                         onClick={() => updatePacket(packet.id, "request_signature")}
                       >
-                        Request signature
+                        Request patient signature
                       </Button>
                     ) : null}
                   </div>
@@ -244,13 +243,13 @@ export function PacketControls({
                     variant="secondary"
                     onClick={() => updatePacket(packet.id, "mark_faxed")}
                   >
-                    Mark faxed
+                    Record fax sent outside PCSN
                   </Button>
                   <Button
                     variant="secondary"
                     onClick={() => updatePacket(packet.id, "mark_submitted")}
                   >
-                    Mark submitted
+                    Record external submission
                   </Button>
                 </div>
               </div>

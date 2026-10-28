@@ -41,7 +41,15 @@ function matchExplanation(state: string) {
 }
 
 /** Server component. The audited published catalog is the only routing source shown here. */
-export async function AssistancePlan({ profile: originalProfile, submissionId }: { profile: Profile; submissionId?: string }) {
+type ExistingProgramCase = {
+  id: string;
+  program_id: string;
+  application_status: string;
+  assigned_to: string | null;
+  follow_up_at: string | null;
+};
+
+export async function AssistancePlan({ profile: originalProfile, submissionId, existingCases = [] }: { profile: Profile; submissionId?: string; existingCases?: ExistingProgramCase[] }) {
   let catalog;
   try {
     catalog = await readPublishedCatalog();
@@ -70,14 +78,14 @@ export async function AssistancePlan({ profile: originalProfile, submissionId }:
         <ul className="grid gap-3">
           {preview.map((route) => {
             const program = programs.get(route.programId);
+            const existingCase = existingCases.find((item) => item.program_id === route.programId);
             const requiredDocuments = (program?.documentIds ?? []).map((id) => documents.get(id)?.name).filter((name): name is string => Boolean(name));
             return <li key={route.programId} className="rounded border border-pine/20 bg-pine/5 p-4 text-sm">
-              <div className="flex flex-wrap items-start justify-between gap-2"><strong className="text-base">{route.program}</strong><span className="rounded-full bg-white px-2 py-1 text-xs">{route.matchState.replaceAll("_", " ")} · {route.actionType.replaceAll("_", " ")}</span></div>
+              <div className="flex flex-wrap items-start justify-between gap-2"><strong className="text-base">{route.program}</strong><span className="rounded-full bg-white px-2 py-1 text-xs">Review needed · {route.actionType.replaceAll("_", " ")}</span></div>
               <p className="mt-2">{matchExplanation(route.matchState)}</p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">{route.rationale.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-              {requiredDocuments.length ? <p className="mt-3 text-xs"><strong>Volunteer checklist / documents:</strong> {requiredDocuments.join("; ")}</p> : <p className="mt-3 text-xs">No catalog checklist is configured. Review the official source and record findings in the program case.</p>}
-              {route.providerRequired ? <p className="mt-2 text-xs">Provider action or consent remains outstanding.</p> : null}
-              <div className="mt-3 flex flex-wrap items-center gap-3"><a className="text-pine underline" href={route.sourceUrl} target="_blank" rel="noreferrer">Official source</a>{submissionId ? <CreateProgramCaseButton submissionId={submissionId} programId={route.programId} /> : null}</div>
+              <div className="mt-3 rounded-md bg-white/80 p-3"><p className="font-medium">Why it was suggested</p><ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-slate-700">{route.rationale.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>
+              <div className="mt-3 rounded-md bg-white/80 p-3 text-xs"><p className="font-medium">Verify before applying</p>{requiredDocuments.length ? <p className="mt-1">Required or helpful documents: {requiredDocuments.join("; ")}</p> : <p className="mt-1">No verified program-specific document checklist is available. Review the official source before requesting documents.</p>}{route.providerRequired ? <p className="mt-1">Provider action or consent may still be needed.</p> : null}<p className="mt-1">PCSN cannot confirm eligibility or whether the patient already receives this assistance; verify with the patient and program.</p></div>
+              {existingCase ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-pine/30 bg-white p-3"><div><p className="font-medium">Already being tracked</p><p className="text-xs text-slate-600">Status: {existingCase.application_status.replaceAll("_", " ")}{existingCase.assigned_to ? ` · Assigned to ${existingCase.assigned_to}` : " · Unassigned"}{existingCase.follow_up_at ? ` · Follow up ${existingCase.follow_up_at.slice(0, 10)}` : ""}</p></div><a href="#active-applications" className="font-semibold text-pine underline">Open tracking record</a></div> : <div className="mt-3 flex flex-wrap items-center gap-3"><a className="text-pine underline" href={route.sourceUrl} target="_blank" rel="noreferrer">Review official program information</a>{submissionId ? <CreateProgramCaseButton submissionId={submissionId} programId={route.programId} /> : null}</div>}
             </li>;
           })}
         </ul>

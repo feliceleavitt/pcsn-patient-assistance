@@ -48,7 +48,7 @@ export async function PATCH(
     .update(update)
     .eq("id", caseId)
     .eq("submission_id", submissionId)
-    .select("id")
+    .select("id,assigned_to,application_deadline,submitted_at,follow_up_at,reminder_status,application_status,decision_details,decision_at,internal_notes")
     .maybeSingle();
   if (error || !data) return NextResponse.json({ error: "Program case not found or could not be updated." }, { status: error ? 500 : 404 });
 
@@ -58,5 +58,5 @@ export async function PATCH(
     submissionId,
     metadata: { caseId, changedFields: Object.keys(update) },
   });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, programCase: data });
 }

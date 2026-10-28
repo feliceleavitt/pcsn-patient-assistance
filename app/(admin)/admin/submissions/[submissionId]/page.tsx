@@ -9,6 +9,7 @@ import { ApplicationEditor } from "@/components/admin/ApplicationEditor";
 import { MessageThread } from "@/components/admin/MessageThread";
 import { PacketControls } from "@/components/admin/PacketControls";
 import { ProgramCaseControls } from "@/components/admin/ProgramCaseControls";
+import { VolunteerCaseWorkspace } from "@/components/admin/VolunteerCaseWorkspace";
 import { getArchivedSubmissionIds } from "@/lib/security/archive";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
@@ -99,28 +100,33 @@ export default async function SubmissionDetailPage({
           </div>
         </div>
 
-        <AssistancePlan profile={adaptSubmission(submission)} submissionId={submissionId} />
-        {demoMode ? <Link href="/admin/assistance-plan-preview" className="text-sm text-pine underline">Explore synthetic Assistance Plan examples (development only)</Link> : null}
-
-        <ApplicationEditor submissionId={submissionId} initial={{
-          firstName: submission.patients.first_name, lastName: submission.patients.last_name,
-          dateOfBirth: submission.patients.date_of_birth, phone: submission.patients.phone, email: submission.patients.email,
-          cancerType: submission.cancer_type, cancerStage: String(insurance.cancerStage ?? ""), diagnosisDate: submission.diagnosis_date,
-          treatmentPlan: submission.treatment_plan ?? "", medications: submission.medication_requested ?? "", pharmacyName: String(insurance.pharmacyName ?? ""),
-          providerName: submission.provider_name ?? "", providerNpi: submission.provider_npi ?? "", insuranceCompany: String(insurance.medicalCarrier ?? ""),
-          memberId: String(insurance.medicalMemberId ?? ""), pcn: String(insurance.medicalPcn ?? ""), groupId: String(insurance.medicalGroupId ?? ""), policyHolder: String(insurance.medicalPolicyHolder ?? ""),
-          monthlyIncome: String(submission.monthly_income ?? ""), annualIncome: String(submission.annual_income ?? ""),
-        }} />
-        <PacketControls
-          submissionId={submissionId}
-          resources={volunteerResources}
-          initialPackets={submission.assistance_packets ?? []}
-        />
-        <ProgramCaseControls
-          submissionId={submissionId}
-          initialCases={submission.program_cases ?? []}
-        />
-
+        <VolunteerCaseWorkspace
+          patientName={`${submission.patients.first_name} ${submission.patients.last_name}`}
+          status={submission.status}
+          sections={[
+            { id: "overview", label: "Overview & next steps" },
+            { id: "patient-information", label: "Patient information" },
+            { id: "assistance-plan", label: "Assistance plan" },
+            { id: "active-applications", label: "My tasks & applications" },
+            { id: "documents", label: "Documents & signatures" },
+            { id: "patient-messages", label: "Patient messages" },
+            { id: "activity-history", label: "Activity history" },
+          ]}
+        >
+          <div data-case-section="overview" className="grid gap-5">
+            <section className="grid gap-3 rounded-md bg-white p-5 shadow-soft"><h2 className="text-xl font-semibold">What needs attention now</h2><p className="text-sm text-slate-600">Start by reviewing the application status and missing documents. Then review suggested programs, start tracking only the programs you plan to work on, and record outside actions here.</p><ul className="grid gap-2 text-sm"><li className="rounded bg-paper p-3"><strong>Case status:</strong> {submission.status.replaceAll("_", " ")}</li><li className="rounded bg-paper p-3"><strong>Missing documents:</strong> {submission.missing_documents || "None currently requested."}</li><li className="rounded bg-paper p-3"><strong>Active applications:</strong> {(submission.program_cases ?? []).length}</li></ul></section>
+            <StatusControls submissionId={submissionId} initialStatus={submission.status} initialMissingDocuments={submission.missing_documents} />
+          </div>
+          <div data-case-section="assistance-plan" className="grid gap-5">
+            <AssistancePlan profile={adaptSubmission(submission)} submissionId={submissionId} existingCases={submission.program_cases ?? []} />
+            {demoMode ? <Link href="/admin/assistance-plan-preview" className="text-sm text-pine underline">Explore synthetic Assistance Plan examples (development only)</Link> : null}
+          </div>
+          <div data-case-section="active-applications"><ProgramCaseControls submissionId={submissionId} initialCases={submission.program_cases ?? []} /></div>
+          <div data-case-section="documents" className="grid gap-5">
+            <PacketControls submissionId={submissionId} resources={volunteerResources} initialPackets={submission.assistance_packets ?? []} />
+            <ApplicationEditor submissionId={submissionId} initial={{ firstName: submission.patients.first_name, lastName: submission.patients.last_name, dateOfBirth: submission.patients.date_of_birth, phone: submission.patients.phone, email: submission.patients.email, cancerType: submission.cancer_type, cancerStage: String(insurance.cancerStage ?? ""), diagnosisDate: submission.diagnosis_date, treatmentPlan: submission.treatment_plan ?? "", medications: submission.medication_requested ?? "", pharmacyName: String(insurance.pharmacyName ?? ""), providerName: submission.provider_name ?? "", providerNpi: submission.provider_npi ?? "", insuranceCompany: String(insurance.medicalCarrier ?? ""), memberId: String(insurance.medicalMemberId ?? ""), pcn: String(insurance.medicalPcn ?? ""), groupId: String(insurance.medicalGroupId ?? ""), policyHolder: String(insurance.medicalPolicyHolder ?? ""), monthlyIncome: String(submission.monthly_income ?? ""), annualIncome: String(submission.annual_income ?? "") }} />
+          </div>
+          <div data-case-section="patient-information" className="grid gap-6">
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="grid gap-5 rounded-md bg-white p-5 shadow-soft">
             <h2 className="text-lg font-semibold">Patient details</h2>
@@ -336,14 +342,12 @@ export default async function SubmissionDetailPage({
                 <p className="text-sm text-slate-500">No notes yet.</p>
               )}
             </div>
-            <MessageThread submissionId={submissionId} initialMessages={submission.patient_messages ?? []} />
           </section>
-          <StatusControls
-            submissionId={submissionId}
-            initialStatus={submission.status}
-            initialMissingDocuments={submission.missing_documents}
-          />
         </div>
+          </div>
+          <div data-case-section="patient-messages"><MessageThread submissionId={submissionId} initialMessages={submission.patient_messages ?? []} /></div>
+          <div data-case-section="activity-history" className="grid gap-4 rounded-md bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Activity history</h2><p className="text-sm text-slate-600">The current portal records volunteer views, case changes, document downloads, and packet exports in the audit log. This screen shows the available dated case notes.</p>{submission.admin_notes.length ? submission.admin_notes.map((note: { id: string; note: string; created_at: string }) => <div key={note.id} className="rounded-md bg-paper p-3 text-sm"><p>{note.note}</p><p className="mt-2 text-xs text-slate-500">{new Date(note.created_at).toLocaleString()}</p></div>) : <p className="text-sm text-slate-500">No dated notes yet.</p>}</div>
+        </VolunteerCaseWorkspace>
       </div>
     </main>
   );
