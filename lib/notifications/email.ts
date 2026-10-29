@@ -185,7 +185,7 @@ export async function sendVolunteerPasswordReset(email: string, resetUrl: string
 export async function sendStagingVolunteerSetup(email: string, setupUrl: string, idempotencyKey: string) {
   const isPreview = process.env.VERCEL_ENV === "preview";
   const configuredRecipient = process.env.STAGING_TEST_EMAIL_RECIPIENT?.trim().toLowerCase();
-  if (!isPreview || configuredRecipient !== email.trim().toLowerCase() || process.env.DISABLE_OUTBOUND_EMAIL === "true") {
+  if (!isPreview || configuredRecipient !== email.trim().toLowerCase()) {
     return { accepted: false, reason: "preview_delivery_not_allowed" } as const;
   }
   if (!process.env.RESEND_API_KEY) {
