@@ -69,7 +69,10 @@ export async function POST(request: Request) {
   const authLookup = await findAuthUsersByEmail(service, [recipient, actorEmail]);
   const user = authLookup.users?.get(recipient);
   const actor = authLookup.users?.get(actorEmail);
-  if (authLookup.error || !user || !actor) {
+  if (authLookup.error) {
+    return NextResponse.json({ error: "Staging identity lookup is temporarily unavailable." }, { status: 503, headers: responseHeaders });
+  }
+  if (!user) {
     return NextResponse.json({ error: "The approved staging volunteer account is unavailable." }, { status: 409, headers: responseHeaders });
   }
   const { data: role, error: roleError } = await service
@@ -81,13 +84,23 @@ export async function POST(request: Request) {
   if (roleError || !role) {
     return NextResponse.json({ error: "The approved staging volunteer account is unavailable." }, { status: 409, headers: responseHeaders });
   }
-  const { data: actorRole, error: actorRoleError } = await service
-    .from("admin_roles")
-    .select("role")
-    .eq("user_id", actor.id)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (actorRoleError || !actorRole) {
+  // Established volunteers use the signed, server-verified credential session
+  // (`volunteer:<email>`). It has no matching Supabase Auth session, but
+  // requireAdminSession has already verified its credential record and role.
+  // Use that stable actor identifier for audit logging rather than rejecting a
+  // legitimate administrator who is already signed into the dashboard.
+  const actorId = actor?.id ?? session.user.id;
+  if (actor) {
+    const { data: actorRole, error: actorRoleError } = await service
+      .from("admin_roles")
+      .select("role")
+      .eq("user_id", actor.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (actorRoleError || !actorRole) {
+      return NextResponse.json({ error: "A verified administrator identity is required." }, { status: 403, headers: responseHeaders });
+    }
+  } else if (session.user.id !== `volunteer:${actorEmail}`) {
     return NextResponse.json({ error: "A verified administrator identity is required." }, { status: 403, headers: responseHeaders });
   }
 
@@ -139,7 +152,7 @@ export async function POST(request: Request) {
   let deliveryFailureReason = "unexpected_failure";
   try {
     await recordAuditEvent({
-      actorId: actor.id,
+      actorId,
       action: "staging_volunteer_invitation_requested",
       metadata: { recipient: "configured-staging-recipient" },
     });
@@ -168,7 +181,7 @@ export async function POST(request: Request) {
       throw new Error("Delivery was not accepted");
     }
     await recordAuditEvent({
-      actorId: actor.id,
+      actorId,
       action: "staging_volunteer_invitation_sent",
       metadata: { recipient: "configured-staging-recipient" },
     });
@@ -180,7 +193,7 @@ export async function POST(request: Request) {
       .is("consumed_at", null);
     try {
       await recordAuditEvent({
-        actorId: actor.id,
+        actorId,
         action: "staging_volunteer_invitation_failed",
         metadata: { recipient: "configured-staging-recipient", reason: deliveryFailureReason },
       });
