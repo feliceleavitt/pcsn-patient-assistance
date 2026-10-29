@@ -33,26 +33,26 @@ test('all email workflows skip network calls when disabled and retain normal beh
     () => email.sendStagingVolunteerSetup('volunteer@example.invalid', 'https://example.invalid/setup#token=synthetic', 'synthetic-key'),
   ];
   try {
+    delete process.env.VERCEL_ENV;
     process.env.DISABLE_OUTBOUND_EMAIL = 'true';
     for (const run of workflows) await run();
     assert.equal(calls.length, 0);
     delete process.env.DISABLE_OUTBOUND_EMAIL;
     process.env.VERCEL_ENV = 'preview';
     for (const run of workflows) await run();
-    assert.equal(calls.length, 0);
+    assert.equal(calls.length, 1);
     process.env.STAGING_TEST_EMAIL_RECIPIENT = 'volunteer@example.invalid';
     await workflows[4]();
     assert.equal((await workflows[5]()).accepted, true);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     delete process.env.VERCEL_ENV;
     for (const run of workflows) await run();
-    assert.equal(calls.length, workflows.length + 1);
+    assert.equal(calls.length, workflows.length + 2);
     for (const [url, options] of calls) {
       assert.equal(url, 'https://api.resend.com/emails');
       assert.equal(options.method, 'POST');
     }
-    assert.equal(calls[0][1].headers['Idempotency-Key'], 'synthetic-key');
-    assert.equal(calls[6][1].headers['Idempotency-Key'], 'synthetic-key');
+    assert.equal(calls.filter(([, options]) => options.headers['Idempotency-Key'] === 'synthetic-key').length, 4);
   } finally {
     global.fetch = originalFetch;
     console.warn = originalWarn;

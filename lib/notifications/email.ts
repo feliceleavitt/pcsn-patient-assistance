@@ -19,6 +19,7 @@ type EmailMessage = {
   subject: string;
   text: string;
   allowConfiguredPreviewRecipient?: boolean;
+  allowApprovedPreviewInvitation?: boolean;
 };
 
 export type StagingInvitationDelivery =
@@ -33,16 +34,45 @@ export type StagingInvitationDelivery =
         | "provider_unavailable";
     };
 
-async function sendEmail({ to, subject, text, idempotencyKey, allowConfiguredPreviewRecipient }: EmailMessage) {
-  const isPreview = process.env.VERCEL_ENV === "preview";
-  const configuredPreviewRecipient = process.env.STAGING_TEST_EMAIL_RECIPIENT?.trim().toLowerCase();
-  const isAllowedPreviewRecovery = isPreview &&
-    allowConfiguredPreviewRecipient === true &&
-    configuredPreviewRecipient !== undefined &&
-    to.trim().toLowerCase() === configuredPreviewRecipient;
+function senderDomain(from: string) {
+  const address = from.match(/<([^>]+)>/)?.[1] ?? from;
+  return address.trim().toLowerCase().split("@")[1] ?? null;
+}
 
-  if ((isPreview && !isAllowedPreviewRecovery) ||
-      (!isAllowedPreviewRecovery && process.env.DISABLE_OUTBOUND_EMAIL === "true")) {
+export type StagingInvitationPreflight =
+  | { ready: true }
+  | { ready: false; reason: "email_provider_not_configured" | "sender_not_configured" | "provider_unavailable" | "sender_domain_unverified" | "provider_rejected" };
+
+export async function preflightStagingVolunteerInvitation(): Promise<StagingInvitationPreflight> {
+  if (process.env.VERCEL_ENV !== "preview" || !process.env.RESEND_API_KEY) return { ready: false, reason: "email_provider_not_configured" };
+  const from = process.env.NOTIFICATION_FROM_EMAIL;
+  const domain = from ? senderDomain(from) : null;
+  if (!domain) return { ready: false, reason: "sender_not_configured" };
+  try {
+    const response = await fetch("https://api.resend.com/domains?limit=100", {
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+    });
+    if (!response.ok) return { ready: false, reason: "provider_rejected" };
+    const payload = await response.json() as { data?: Array<{ name?: string; status?: string; capabilities?: { sending?: string } }> };
+    const matchingDomain = payload.data?.find((candidate) => candidate.name?.toLowerCase() === domain);
+    return matchingDomain?.status === "verified" && matchingDomain.capabilities?.sending === "enabled"
+      ? { ready: true }
+      : { ready: false, reason: "sender_domain_unverified" };
+  } catch {
+    return { ready: false, reason: "provider_unavailable" };
+  }
+}
+
+async function sendEmail({ to, subject, text, idempotencyKey, allowConfiguredPreviewRecipient, allowApprovedPreviewInvitation }: EmailMessage) {
+  const isPreview = process.env.VERCEL_ENV === "preview";
+  const configuredRecipient = process.env.STAGING_TEST_EMAIL_RECIPIENT?.trim().toLowerCase();
+  const isAllowedPreviewInvitation = isPreview && (
+    allowApprovedPreviewInvitation === true ||
+    (allowConfiguredPreviewRecipient === true && configuredRecipient !== undefined && to.trim().toLowerCase() === configuredRecipient)
+  );
+
+  if ((isPreview && !isAllowedPreviewInvitation) ||
+      (!isAllowedPreviewInvitation && process.env.DISABLE_OUTBOUND_EMAIL === "true")) {
     console.warn("Skipping email notification: outbound email is disabled.");
     return false;
   }
@@ -183,23 +213,14 @@ export async function sendVolunteerPasswordReset(email: string, resetUrl: string
 }
 
 export async function sendStagingVolunteerSetup(email: string, setupUrl: string, idempotencyKey: string) {
-  const isPreview = process.env.VERCEL_ENV === "preview";
-  const configuredRecipient = process.env.STAGING_TEST_EMAIL_RECIPIENT?.trim().toLowerCase();
-  if (!isPreview || configuredRecipient !== email.trim().toLowerCase()) {
+  if (process.env.VERCEL_ENV !== "preview") {
     return { accepted: false, reason: "preview_delivery_not_allowed" } as const;
   }
-  if (!process.env.RESEND_API_KEY) {
-    return { accepted: false, reason: "email_provider_not_configured" } as const;
-  }
-  if (!process.env.NOTIFICATION_FROM_EMAIL) {
-    return { accepted: false, reason: "sender_not_configured" } as const;
-  }
-
   try {
     const delivered = await sendEmail({
     to: email,
     idempotencyKey,
-    allowConfiguredPreviewRecipient: true,
+    allowApprovedPreviewInvitation: true,
     subject: "Set up your PCSN staging volunteer account",
     text: [
       "You have been invited to the test version of the PCSN Patient Assistance Portal.",

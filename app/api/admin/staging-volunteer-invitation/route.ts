@@ -1,34 +1,44 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { sameOrigin } from "@/lib/catalog/origin";
-import { sendStagingVolunteerSetup } from "@/lib/notifications/email";
+import { preflightStagingVolunteerInvitation, sendStagingVolunteerSetup } from "@/lib/notifications/email";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import {
-  configuredStagingVolunteerRecipient,
   createStagingVolunteerSetupCapability,
   stagingVolunteerInviteCooldownMinutes,
   stagingVolunteerSetupLifetimeMinutes,
 } from "@/lib/security/staging-volunteer-invitation";
 import { isVolunteerEmail } from "@/lib/security/volunteers";
+import { isPreviewDeployment } from "@/lib/security/staging-volunteer-setup";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const responseHeaders = { "Cache-Control": "no-store" };
+const invitationSchema = z.object({
+  action: z.enum(["status", "preflight", "send"]).default("send"),
+  email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
+});
 
 export async function POST(request: Request) {
+  if (!isPreviewDeployment()) return new NextResponse(null, { status: 404 });
   if (!sameOrigin(request)) {
     return NextResponse.json({ error: "Invalid request origin." }, { status: 403, headers: responseHeaders });
-  }
-
-  const recipient = configuredStagingVolunteerRecipient();
-  if (!recipient || !isVolunteerEmail(recipient)) {
-    return NextResponse.json({ error: "Staging invitation delivery is not configured." }, { status: 503, headers: responseHeaders });
   }
 
   const session = await requireAdminSession();
   if (session.role !== "admin") {
     return NextResponse.json({ error: "Volunteer administrator access is required." }, { status: 403, headers: responseHeaders });
+  }
+
+  const parsed = invitationSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Enter a valid approved volunteer email address." }, { status: 400, headers: responseHeaders });
+  }
+  const { action, email: recipient } = parsed.data;
+  if (!isVolunteerEmail(recipient)) {
+    return NextResponse.json({ error: "This address is not approved for staging volunteer access." }, { status: 403, headers: responseHeaders });
   }
 
   const service = createServiceClient();
@@ -55,6 +65,36 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (actorRoleError || !actorRole) {
     return NextResponse.json({ error: "A verified administrator identity is required." }, { status: 403, headers: responseHeaders });
+  }
+
+  const { data: latestInvitation, error: latestInvitationError } = await service
+    .from("staging_volunteer_password_setup_tokens")
+    .select("expires_at,consumed_at,created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestInvitationError) {
+    return NextResponse.json({ error: "Staging invitation service is temporarily unavailable." }, { status: 503, headers: responseHeaders });
+  }
+  const invitationStatus = !latestInvitation
+    ? "not_sent"
+    : latestInvitation.consumed_at
+      ? "accepted"
+      : new Date(latestInvitation.expires_at) <= new Date()
+        ? "expired"
+        : "pending";
+
+  if (action === "status") {
+    return NextResponse.json({ email: recipient, status: invitationStatus }, { headers: responseHeaders });
+  }
+
+  const deliveryPreflight = await preflightStagingVolunteerInvitation();
+  if (action === "preflight") {
+    return NextResponse.json({ email: recipient, status: invitationStatus, delivery: deliveryPreflight.ready ? "ready" : "not_ready" }, { headers: responseHeaders });
+  }
+  if (!deliveryPreflight.ready) {
+    return NextResponse.json({ error: "Email delivery is not ready. Check the approved Resend sender configuration." }, { status: 503, headers: responseHeaders });
   }
 
   const cooldownStart = new Date(Date.now() - stagingVolunteerInviteCooldownMinutes * 60_000).toISOString();
