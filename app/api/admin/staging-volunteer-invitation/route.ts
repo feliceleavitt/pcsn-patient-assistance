@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Staging identity lookup is temporarily unavailable." }, { status: 503, headers: responseHeaders });
   }
   if (!user) {
-    return NextResponse.json({ error: "The approved staging volunteer account is unavailable." }, { status: 409, headers: responseHeaders });
+    return NextResponse.json({ error: "This approved volunteer has no matching staging identity." }, { status: 409, headers: responseHeaders });
   }
   const { data: role, error: roleError } = await service
     .from("admin_roles")
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     .eq("role", "admin")
     .maybeSingle();
   if (roleError || !role) {
-    return NextResponse.json({ error: "The approved staging volunteer account is unavailable." }, { status: 409, headers: responseHeaders });
+    return NextResponse.json({ error: "This staging identity is not authorized as a volunteer administrator." }, { status: 409, headers: responseHeaders });
   }
   // Established volunteers use the signed, server-verified credential session
   // (`volunteer:<email>`). It has no matching Supabase Auth session, but
