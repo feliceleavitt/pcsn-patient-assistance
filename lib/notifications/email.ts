@@ -21,6 +21,18 @@ type EmailMessage = {
   allowConfiguredPreviewRecipient?: boolean;
 };
 
+export type StagingInvitationDelivery =
+  | { accepted: true }
+  | {
+      accepted: false;
+      reason:
+        | "preview_delivery_not_allowed"
+        | "email_provider_not_configured"
+        | "sender_not_configured"
+        | "provider_rejected"
+        | "provider_unavailable";
+    };
+
 async function sendEmail({ to, subject, text, idempotencyKey, allowConfiguredPreviewRecipient }: EmailMessage) {
   const isPreview = process.env.VERCEL_ENV === "preview";
   const configuredPreviewRecipient = process.env.STAGING_TEST_EMAIL_RECIPIENT?.trim().toLowerCase();
@@ -171,7 +183,20 @@ export async function sendVolunteerPasswordReset(email: string, resetUrl: string
 }
 
 export async function sendStagingVolunteerSetup(email: string, setupUrl: string, idempotencyKey: string) {
-  return sendEmail({
+  const isPreview = process.env.VERCEL_ENV === "preview";
+  const configuredRecipient = process.env.STAGING_TEST_EMAIL_RECIPIENT?.trim().toLowerCase();
+  if (!isPreview || configuredRecipient !== email.trim().toLowerCase() || process.env.DISABLE_OUTBOUND_EMAIL === "true") {
+    return { accepted: false, reason: "preview_delivery_not_allowed" } as const;
+  }
+  if (!process.env.RESEND_API_KEY) {
+    return { accepted: false, reason: "email_provider_not_configured" } as const;
+  }
+  if (!process.env.NOTIFICATION_FROM_EMAIL) {
+    return { accepted: false, reason: "sender_not_configured" } as const;
+  }
+
+  try {
+    const delivered = await sendEmail({
     to: email,
     idempotencyKey,
     allowConfiguredPreviewRecipient: true,
@@ -190,4 +215,10 @@ export async function sendStagingVolunteerSetup(email: string, setupUrl: string,
       "If you did not expect this invitation, ignore this email.",
     ].join("\n"),
   });
+    return delivered
+      ? ({ accepted: true } as const)
+      : ({ accepted: false, reason: "provider_rejected" } as const);
+  } catch {
+    return { accepted: false, reason: "provider_unavailable" } as const;
+  }
 }

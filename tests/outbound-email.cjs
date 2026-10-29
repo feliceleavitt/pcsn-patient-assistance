@@ -42,11 +42,11 @@ test('all email workflows skip network calls when disabled and retain normal beh
     assert.equal(calls.length, 0);
     process.env.STAGING_TEST_EMAIL_RECIPIENT = 'volunteer@example.invalid';
     await workflows[4]();
-    await workflows[5]();
+    assert.equal((await workflows[5]()).accepted, true);
     assert.equal(calls.length, 2);
     delete process.env.VERCEL_ENV;
     for (const run of workflows) await run();
-    assert.equal(calls.length, workflows.length + 2);
+    assert.equal(calls.length, workflows.length + 1);
     for (const [url, options] of calls) {
       assert.equal(url, 'https://api.resend.com/emails');
       assert.equal(options.method, 'POST');

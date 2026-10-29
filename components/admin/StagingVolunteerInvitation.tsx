@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 
-export function StagingVolunteerInvitation() {
+export function StagingVolunteerInvitation({ recipient }: { recipient: string | null }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   async function sendInvitation() {
@@ -26,10 +26,15 @@ export function StagingVolunteerInvitation() {
     <section className="grid gap-3 rounded-md border border-pine/20 bg-white p-5 shadow-soft">
       <div>
         <h2 className="text-lg font-semibold">Staging volunteer invitation</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-600">Send the configured test volunteer a single-use password setup email. The link is never displayed in this portal.</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">
+          {recipient
+            ? <>Send a single-use password setup email to the approved staging volunteer: <strong>{recipient}</strong>.</>
+            : "Invitation delivery is not configured for an approved staging volunteer."}
+          {" "}The link is never displayed in this portal.
+        </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={sendInvitation} disabled={state === "sending" || state === "sent"}>{state === "sending" ? "Sending…" : state === "sent" ? "Invitation sent" : "Send setup invitation"}</Button>
+        <Button type="button" onClick={sendInvitation} disabled={!recipient || state === "sending" || state === "sent"}>{state === "sending" ? "Sending…" : state === "sent" ? "Invitation sent" : "Send setup invitation"}</Button>
         {state === "sent" ? <p role="status" className="text-sm text-pine">Delivery was accepted. The recipient can create a password from the email.</p> : null}
         {state === "error" ? <p role="alert" className="text-sm text-coral">Delivery could not be confirmed. No setup link is shown here.</p> : null}
       </div>

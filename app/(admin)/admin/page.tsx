@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getDemoSubmissions, isDemoMode } from "@/lib/demo/admin";
+import { configuredStagingVolunteerRecipient } from "@/lib/security/staging-volunteer-invitation";
 import {
   getArchivedDraftUserIds,
   getArchivedSubmissionIds,
@@ -119,7 +120,7 @@ export default async function AdminDashboardPage() {
           </Link>
         </section>
 
-        {process.env.VERCEL_ENV === "preview" ? <StagingVolunteerInvitation /> : null}
+        {process.env.VERCEL_ENV === "preview" ? <StagingVolunteerInvitation recipient={configuredStagingVolunteerRecipient()} /> : null}
 
         <section className="grid gap-4">
           <div>

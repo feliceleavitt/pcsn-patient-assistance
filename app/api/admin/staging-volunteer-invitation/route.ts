@@ -72,6 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A recent setup invitation is already active." }, { status: 429, headers: responseHeaders });
   }
 
+  let deliveryFailureReason = "unexpected_failure";
   try {
     await recordAuditEvent({
       actorId: actor.id,
@@ -93,12 +94,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const delivered = await sendStagingVolunteerSetup(
+    const delivery = await sendStagingVolunteerSetup(
       recipient,
       capability.setupUrl,
       `staging-volunteer-setup/${capability.tokenHash}`,
     );
-    if (!delivered) throw new Error("Delivery was not accepted");
+    if (!delivery.accepted) {
+      deliveryFailureReason = delivery.reason;
+      throw new Error("Delivery was not accepted");
+    }
     await recordAuditEvent({
       actorId: actor.id,
       action: "staging_volunteer_invitation_sent",
@@ -114,7 +118,7 @@ export async function POST(request: Request) {
       await recordAuditEvent({
         actorId: actor.id,
         action: "staging_volunteer_invitation_failed",
-        metadata: { recipient: "configured-staging-recipient" },
+        metadata: { recipient: "configured-staging-recipient", reason: deliveryFailureReason },
       });
     } catch {
       // Do not mask a safe delivery failure with a second error.
