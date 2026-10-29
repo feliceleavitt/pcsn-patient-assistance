@@ -43,7 +43,7 @@ test("staging invitation capability is opaque, hashed, and pinned to the stable 
 });
 
 test("invitation endpoint keeps setup capabilities server-side and applies authorization, origin, cooldown, and audit controls", () => {
-  for (const requirement of ["sameOrigin(request)", "requireAdminSession()", "session.role !== \"admin\"", "stagingVolunteerInviteCooldownMinutes", "recordAuditEvent", "sendStagingVolunteerSetup", "token_hash", "capability.tokenHash"]) {
+  for (const requirement of ["sameOrigin(request)", "requireAdminSession()", "session.role !== \"admin\"", "stagingVolunteerInviteCooldownMinutes", "recordAuditEvent", "sendStagingVolunteerSetup", "token_hash", "capability.tokenHash", "listUsers({ page, perPage })", "page <= 20"]) {
     assert.match(route, new RegExp(requirement.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(route, /NextResponse\.json\(\{ ok: true \}/);

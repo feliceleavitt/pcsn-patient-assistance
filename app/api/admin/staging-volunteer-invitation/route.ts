@@ -21,6 +21,26 @@ const invitationSchema = z.object({
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
 });
 
+async function findAuthUsersByEmail(
+  service: ReturnType<typeof createServiceClient>,
+  emails: string[],
+) {
+  const wanted = new Set(emails.map((email) => email.toLowerCase()));
+  const found = new Map<string, { id: string; email?: string }>();
+  const perPage = 100;
+  for (let page = 1; page <= 20 && found.size < wanted.size; page += 1) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage });
+    if (error) return { error };
+    const users = data.users;
+    for (const candidate of users) {
+      const email = candidate.email?.toLowerCase();
+      if (email && wanted.has(email)) found.set(email, candidate);
+    }
+    if (users.length < perPage) break;
+  }
+  return { users: found };
+}
+
 export async function POST(request: Request) {
   if (!isPreviewDeployment()) return new NextResponse(null, { status: 404 });
   if (!sameOrigin(request)) {
@@ -42,10 +62,14 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient();
-  const { data: users, error: usersError } = await service.auth.admin.listUsers({ perPage: 100 });
-  const user = users?.users.find((candidate) => candidate.email?.toLowerCase() === recipient);
-  const actor = users?.users.find((candidate) => candidate.email?.toLowerCase() === session.user.email?.toLowerCase());
-  if (usersError || !user || !actor) {
+  const actorEmail = session.user.email?.toLowerCase();
+  if (!actorEmail) {
+    return NextResponse.json({ error: "A verified administrator identity is required." }, { status: 403, headers: responseHeaders });
+  }
+  const authLookup = await findAuthUsersByEmail(service, [recipient, actorEmail]);
+  const user = authLookup.users?.get(recipient);
+  const actor = authLookup.users?.get(actorEmail);
+  if (authLookup.error || !user || !actor) {
     return NextResponse.json({ error: "The approved staging volunteer account is unavailable." }, { status: 409, headers: responseHeaders });
   }
   const { data: role, error: roleError } = await service
