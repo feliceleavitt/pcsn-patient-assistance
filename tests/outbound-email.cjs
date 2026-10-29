@@ -13,7 +13,7 @@ Module._extensions['.ts'] = (module, filename) => {
 };
 const email = require('../lib/notifications/email.ts');
 
-test('all five email workflows skip network calls when disabled and retain normal behavior otherwise', async () => {
+test('all email workflows skip network calls when disabled and retain normal behavior otherwise', async () => {
   const originalFetch = global.fetch;
   const originalWarn = console.warn;
   const names = ['VERCEL_ENV', 'DISABLE_OUTBOUND_EMAIL', 'RESEND_API_KEY', 'NOTIFICATION_FROM_EMAIL', 'NOTIFICATION_RECIPIENTS', 'STAGING_TEST_EMAIL_RECIPIENT'];
@@ -30,6 +30,7 @@ test('all five email workflows skip network calls when disabled and retain norma
     () => email.sendPatientSubmissionConfirmation('patient@example.invalid'),
     () => email.sendPatientSignatureRequest('patient@example.invalid', 'https://example.invalid/sign'),
     () => email.sendVolunteerPasswordReset('volunteer@example.invalid', 'https://example.invalid/reset', 'synthetic-key'),
+    () => email.sendStagingVolunteerSetup('volunteer@example.invalid', 'https://example.invalid/setup#token=synthetic', 'synthetic-key'),
   ];
   try {
     process.env.DISABLE_OUTBOUND_EMAIL = 'true';
@@ -41,16 +42,17 @@ test('all five email workflows skip network calls when disabled and retain norma
     assert.equal(calls.length, 0);
     process.env.STAGING_TEST_EMAIL_RECIPIENT = 'volunteer@example.invalid';
     await workflows[4]();
-    assert.equal(calls.length, 1);
+    await workflows[5]();
+    assert.equal(calls.length, 2);
     delete process.env.VERCEL_ENV;
     for (const run of workflows) await run();
-    assert.equal(calls.length, workflows.length + 1);
+    assert.equal(calls.length, workflows.length + 2);
     for (const [url, options] of calls) {
       assert.equal(url, 'https://api.resend.com/emails');
       assert.equal(options.method, 'POST');
     }
     assert.equal(calls[0][1].headers['Idempotency-Key'], 'synthetic-key');
-    assert.equal(calls[5][1].headers['Idempotency-Key'], 'synthetic-key');
+    assert.equal(calls[6][1].headers['Idempotency-Key'], 'synthetic-key');
   } finally {
     global.fetch = originalFetch;
     console.warn = originalWarn;

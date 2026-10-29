@@ -169,3 +169,25 @@ export async function sendVolunteerPasswordReset(email: string, resetUrl: string
     ].join("\n"),
   });
 }
+
+export async function sendStagingVolunteerSetup(email: string, setupUrl: string, idempotencyKey: string) {
+  return sendEmail({
+    to: email,
+    idempotencyKey,
+    allowConfiguredPreviewRecipient: true,
+    subject: "Set up your PCSN staging volunteer account",
+    text: [
+      "You have been invited to the test version of the PCSN Patient Assistance Portal.",
+      "",
+      "This staging site uses fictional patient records only. Do not enter or upload real patient information.",
+      "",
+      "Use this private, single-use link to create your password:",
+      setupUrl,
+      "",
+      "Afterward, sign in at:",
+      "https://pcsn-patient-assistance-git-codex-audited-catalog-preview-pcsn.vercel.app/admin/login",
+      "",
+      "If you did not expect this invitation, ignore this email.",
+    ].join("\n"),
+  });
+}

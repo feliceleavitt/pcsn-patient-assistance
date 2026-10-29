@@ -28,7 +28,10 @@ type AuditAction =
   | "caregiver_access_revoked"
   | "caregiver_access_viewed"
   | "patient_message_sent"
-  | "volunteer_message_sent";
+  | "volunteer_message_sent"
+  | "staging_volunteer_invitation_requested"
+  | "staging_volunteer_invitation_sent"
+  | "staging_volunteer_invitation_failed";
 
 export async function recordAuditEvent(input: {
   actorId: string;

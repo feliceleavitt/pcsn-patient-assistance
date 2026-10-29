@@ -1,6 +1,7 @@
 import { canManageCatalog } from "@/lib/catalog/access";
 import Link from "next/link";
 import { AdminAutoRefresh } from "@/components/admin/AdminAutoRefresh";
+import { StagingVolunteerInvitation } from "@/components/admin/StagingVolunteerInvitation";
 import { recordAuditEvent } from "@/lib/security/audit";
 import { requireAdminSession } from "@/lib/security/admin";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -117,6 +118,8 @@ export default async function AdminDashboardPage() {
             Refresh list
           </Link>
         </section>
+
+        {process.env.VERCEL_ENV === "preview" ? <StagingVolunteerInvitation /> : null}
 
         <section className="grid gap-4">
           <div>
